@@ -17,20 +17,60 @@ export class DocumentIntelligenceService implements IDocumentIntelligenceService
     text: string;
     pageCount: number;
     info: Record<string, any>;
+    isScannedPdf?: boolean;
+    ocrEngineUsed?: string;
   }> {
     try {
       const pdfModule: any = await import('pdf-parse');
       const PDFParseClass = pdfModule.PDFParse || pdfModule.default?.PDFParse;
       if (PDFParseClass) {
         const parser = new PDFParseClass({ data: buffer });
-        const result = await parser.getText();
-        const text = result.text || '';
-        const pageCount = result.total || 1;
+        const textResult = await parser.getText();
+        let text = (textResult.text || '').trim();
+        const pageCount = textResult.total || 1;
+
+        // If direct text stream is empty or minimal, it's a scanned PDF
+        const isScannedPdf = text.length < 30;
+
+        if (isScannedPdf) {
+          try {
+            // Convert and extract page screenshots as images, then OCR each page
+            const screenshots = await parser.getScreenshot({ imageBuffer: true });
+            let combinedOcrText = '';
+
+            for (const page of screenshots.pages) {
+              if (page.data && page.data.length > 0) {
+                const pageBuffer = Buffer.from(page.data);
+                const pageOcr = await DocumentIntelligenceService.extractTextFromImage(pageBuffer);
+                if (pageOcr.text) {
+                  combinedOcrText += pageOcr.text + '\n';
+                }
+              }
+            }
+
+            await parser.destroy().catch(() => {});
+
+            if (combinedOcrText.trim().length > 0) {
+              return {
+                text: combinedOcrText.trim(),
+                pageCount,
+                info: { convertedPagesCount: screenshots.pages.length },
+                isScannedPdf: true,
+                ocrEngineUsed: 'PDF_SCREENSHOT_TESSERACT_OCR',
+              };
+            }
+          } catch (renderErr) {
+            console.warn('Scanned PDF page rendering OCR error:', renderErr);
+          }
+        }
+
         await parser.destroy().catch(() => {});
         return {
           text,
           pageCount,
           info: {},
+          isScannedPdf,
+          ocrEngineUsed: isScannedPdf ? 'PDF_PARSE (NO_TEXT_FOUND)' : 'PDF_PARSE_STREAM',
         };
       }
       const legacyFn = typeof pdfModule === 'function' ? pdfModule : pdfModule.default;
@@ -39,6 +79,8 @@ export class DocumentIntelligenceService implements IDocumentIntelligenceService
         text: data.text || '',
         pageCount: data.numpages || 1,
         info: data.info || {},
+        isScannedPdf: (data.text || '').trim().length < 30,
+        ocrEngineUsed: 'PDF_PARSE_LEGACY',
       };
     } catch (err: any) {
       throw new Error(`PDF text extraction error: ${err.message}`);
@@ -360,10 +402,12 @@ export class DocumentIntelligenceService implements IDocumentIntelligenceService
     let provider = 'TESSERACT_OCR';
 
     if (ext === '.pdf' || evidenceFile.mimeType === 'application/pdf') {
-      provider = 'PDF_PARSE';
       const pdfResult = await DocumentIntelligenceService.extractTextFromPdf(buffer);
       ocrText = pdfResult.text;
-      confidenceScore = ocrText.length > 50 ? 0.98 : 0.6;
+      provider = pdfResult.ocrEngineUsed || (pdfResult.isScannedPdf ? 'PDF_SCREENSHOT_TESSERACT_OCR' : 'PDF_PARSE');
+      confidenceScore = pdfResult.isScannedPdf
+        ? (ocrText.length > 30 ? 0.90 : 0.40)
+        : (ocrText.length > 50 ? 0.98 : 0.60);
     } else {
       provider = 'TESSERACT_OCR';
       const imgOcrResult = await DocumentIntelligenceService.extractTextFromImage(buffer);

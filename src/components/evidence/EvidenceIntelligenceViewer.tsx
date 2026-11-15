@@ -330,16 +330,22 @@ export function EvidenceIntelligenceViewer({
                     )}
 
                     {/* Damage & Packaging Assessment */}
-                    <div className="p-2.5 bg-white rounded-lg border border-sky-100 space-y-1 text-[11px]">
+                    <div className="p-2.5 bg-white rounded-lg border border-sky-100 space-y-1.5 text-[11px]">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-slate-800">
-                          Damage Detected:{' '}
+                          Semantic Damage Assessment:{' '}
                           <span
                             className={
-                              imgAnalysis.damageDetected ? 'text-amber-700 font-bold' : 'text-slate-600'
+                              imgAnalysis.damageType === 'UNSUPPORTED_WITHOUT_VISION_MODEL'
+                                ? 'text-amber-700 font-semibold'
+                                : imgAnalysis.damageDetected
+                                ? 'text-rose-700 font-bold'
+                                : 'text-slate-600'
                             }
                           >
-                            {imgAnalysis.damageDetected
+                            {imgAnalysis.damageType === 'UNSUPPORTED_WITHOUT_VISION_MODEL'
+                              ? 'Requires Multimodal Vision Provider (Unsupported by local CV heuristics)'
+                              : imgAnalysis.damageDetected
                               ? `${imgAnalysis.damageType || 'DAMAGE'} (${imgAnalysis.damageSeverity} Severity)`
                               : 'None detected'}
                           </span>
@@ -348,7 +354,7 @@ export function EvidenceIntelligenceViewer({
                           Packaging: {imgAnalysis.packagingCondition?.replace(/_/g, ' ')}
                         </span>
                       </div>
-                      <p className="text-slate-600 text-[10px]">
+                      <p className="text-slate-600 text-[10px] leading-relaxed">
                         {imgAnalysis.analysisSummary}
                       </p>
 
@@ -387,8 +393,8 @@ export function EvidenceIntelligenceViewer({
                           {docAnalysis.documentType}
                         </span>
                       </div>
-                      <span className="font-mono text-[11px] font-bold text-purple-900">
-                        Confidence: {((docAnalysis.confidenceScore || 0) * 100).toFixed(0)}%
+                      <span className="font-mono text-[10px] text-purple-800" title="OCR confidence reflects text extraction clarity, not legal authenticity">
+                        OCR Text Clarity: {((docAnalysis.confidenceScore || 0) * 100).toFixed(0)}%
                       </span>
                     </div>
 
@@ -412,14 +418,14 @@ export function EvidenceIntelligenceViewer({
                         )}
                         <div>
                           <span className="font-bold text-xs">
-                            Cross-Check Result: {docAnalysis.orderMatchStatus}
+                            Cross-Check Evaluation: {docAnalysis.orderMatchStatus}
                           </span>
                           <p className="text-[10px] opacity-90">
                             {docAnalysis.orderMatchStatus === 'MATCHED'
-                              ? 'Extracted entities match registered store order and product records.'
+                              ? 'Extracted entities match registered store order and product catalog records.'
                               : docAnalysis.orderMatchStatus === 'CONTRADICTORY'
-                              ? 'CRITICAL: Extracted document data contradicts store order records!'
-                              : 'Discrepancies identified during document cross-check.'}
+                              ? 'Document Inconsistency: Extracted data deviates from store records (Investigation Signal).'
+                              : 'Partial Discrepancy: Non-critical attributes deviate during document cross-check.'}
                           </p>
                         </div>
                       </div>

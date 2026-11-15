@@ -182,7 +182,7 @@ export interface ImageInspectionInput {
 }
 
 export interface ImageInspectionResult {
-  damageDetected: boolean;
+  damageDetected: boolean | null;
   damageType?: string;
   damageSeverity: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'SEVERE';
   packagingCondition: 'UNOPENED' | 'OPENED_INTACT' | 'DAMAGED_TAMPERED';
@@ -202,6 +202,9 @@ export interface ImageInspectionResult {
   duplicateDetails?: string;
   provider?: string;
   modelOrEngine?: string;
+  isSemanticVision?: boolean;
+  visualConfidence?: number | null;
+  findings?: string[];
 }
 
 export interface IImageIntelligenceService {

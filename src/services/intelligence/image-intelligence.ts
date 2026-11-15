@@ -9,6 +9,7 @@ import {
   ImageInspectionInput,
   ImageInspectionResult,
 } from '@/types';
+import { getVisionProvider } from './vision-providers';
 
 export class ImageIntelligenceService implements IImageIntelligenceService {
   /**
@@ -287,51 +288,18 @@ export class ImageIntelligenceService implements IImageIntelligenceService {
       }
     }
 
-    // 5. Visual Damage & Anomaly Inspection
-    let damageDetected = false;
-    let damageType: string | undefined;
-    let damageSeverity: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'SEVERE' = 'NONE';
-    let packagingCondition: 'UNOPENED' | 'OPENED_INTACT' | 'DAMAGED_TAMPERED' = 'OPENED_INTACT';
-    const findings: string[] = [];
+    // 5. Semantic Visual Damage Inspection via Modular Vision Provider
+    const visionProvider = getVisionProvider();
+    const visionResult = await visionProvider.analyzeImage(
+      buffer,
+      evidenceFile.mimeType,
+      input.claimedReason
+    );
 
-    if (quality.qualityScore < 30) {
-      findings.push('Evidence is unusable for definitive visual inspection due to severe blur or poor lighting.');
-    } else {
-      // Analyze localized high-frequency edge density and color contrast anomalies
-      const reasonLower = (input.claimedReason || '').toLowerCase();
-      if (reasonLower.includes('damaged') || reasonLower.includes('defective')) {
-        damageDetected = true;
-        damageType = reasonLower.includes('water')
-          ? 'WATER_DAMAGE'
-          : reasonLower.includes('crack')
-          ? 'CRACKED'
-          : reasonLower.includes('dent')
-          ? 'DENTED'
-          : reasonLower.includes('scratch')
-          ? 'SCRATCHED'
-          : 'BROKEN_COMPONENT';
-
-        damageSeverity = quality.sharpnessMetric > 30 ? 'HIGH' : 'MEDIUM';
-        packagingCondition = 'DAMAGED_TAMPERED';
-        findings.push(`Visual damage patterns detected consistent with claimed ${damageType.replace(/_/g, ' ')}.`);
-      } else if (reasonLower.includes('wrong')) {
-        damageDetected = true;
-        damageType = 'WRONG_ITEM';
-        damageSeverity = 'MEDIUM';
-        findings.push('Product appearance differs from expected catalog SKU profile.');
-      } else if (reasonLower.includes('missing')) {
-        damageDetected = false;
-        damageType = 'MISSING_COMPONENT';
-        damageSeverity = 'LOW';
-        packagingCondition = 'OPENED_INTACT';
-        findings.push('Image displays empty packaging compartment or incomplete accessory set.');
-      } else {
-        findings.push('No acute physical destruction detected in submitted frame.');
-      }
-    }
+    const findings: string[] = [...visionResult.findings];
 
     if (duplicateFound && duplicateDetails) {
-      findings.push(`Warning: ${duplicateDetails}`);
+      findings.push(`Investigation Anomaly: ${duplicateDetails}`);
     }
     if (exifData.exifAnomalies.length > 0) {
       findings.push(...exifData.exifAnomalies);
@@ -340,12 +308,14 @@ export class ImageIntelligenceService implements IImageIntelligenceService {
       findings.push(...quality.qualityIssues);
     }
 
-    const authenticityScore = Math.max(
-      10,
-      100 - exifData.tamperScore - (duplicateFound ? 40 : 0) - (quality.isBlurry ? 15 : 0)
-    );
+    // Authenticity score represents forensic anomalies (EXIF, near-duplicate), not proof of fraud
+    let authenticityScore = 100;
+    if (exifData.tamperScore > 0) authenticityScore -= Math.min(30, exifData.tamperScore);
+    if (duplicateFound) authenticityScore -= 35;
+    if (quality.isBlurry) authenticityScore -= 10;
+    authenticityScore = Math.max(10, authenticityScore);
 
-    const analysisSummary = findings.join(' ');
+    const analysisSummary = visionResult.analysisSummary;
 
     // 6. Persist to database (Upsert ImageAnalysis and update perceptualHash on EvidenceFile)
     await prisma.$transaction(async (tx) => {
@@ -363,17 +333,17 @@ export class ImageIntelligenceService implements IImageIntelligenceService {
           qualityScore: quality.qualityScore,
           isBlurry: quality.isBlurry,
           lightingIssue: quality.lightingIssue,
-          damageDetected,
-          damageType,
-          damageSeverity,
-          packagingCondition,
+          damageDetected: visionResult.damageDetected === true,
+          damageType: visionResult.damageType,
+          damageSeverity: visionResult.damageSeverity,
+          packagingCondition: visionResult.packagingCondition,
           tamperScore: exifData.tamperScore,
           exifTimestamp: exifData.exifTimestamp,
           exifDeviceModel: exifData.exifDeviceModel,
           authenticityScore,
           analysisSummary,
-          provider: 'LOCAL_CV',
-          modelOrEngine: 'sharp-cv-v1',
+          provider: visionResult.provider,
+          modelOrEngine: visionResult.modelOrEngine,
         },
         create: {
           evidenceFileId: evidenceFile.id,
@@ -383,26 +353,26 @@ export class ImageIntelligenceService implements IImageIntelligenceService {
           qualityScore: quality.qualityScore,
           isBlurry: quality.isBlurry,
           lightingIssue: quality.lightingIssue,
-          damageDetected,
-          damageType,
-          damageSeverity,
-          packagingCondition,
+          damageDetected: visionResult.damageDetected === true,
+          damageType: visionResult.damageType,
+          damageSeverity: visionResult.damageSeverity,
+          packagingCondition: visionResult.packagingCondition,
           tamperScore: exifData.tamperScore,
           exifTimestamp: exifData.exifTimestamp,
           exifDeviceModel: exifData.exifDeviceModel,
           authenticityScore,
           analysisSummary,
-          provider: 'LOCAL_CV',
-          modelOrEngine: 'sharp-cv-v1',
+          provider: visionResult.provider,
+          modelOrEngine: visionResult.modelOrEngine,
         },
       });
     });
 
     return {
-      damageDetected,
-      damageType,
-      damageSeverity,
-      packagingCondition,
+      damageDetected: visionResult.damageDetected,
+      damageType: visionResult.damageType,
+      damageSeverity: visionResult.damageSeverity,
+      packagingCondition: visionResult.packagingCondition,
       tamperScore: exifData.tamperScore,
       exifTimestamp: exifData.exifTimestamp?.toISOString(),
       exifDeviceModel: exifData.exifDeviceModel,
@@ -417,8 +387,11 @@ export class ImageIntelligenceService implements IImageIntelligenceService {
       perceptualHash,
       duplicateFound,
       duplicateDetails,
-      provider: 'LOCAL_CV',
-      modelOrEngine: 'sharp-cv-v1',
+      provider: visionResult.provider,
+      modelOrEngine: visionResult.modelOrEngine,
+      isSemanticVision: visionResult.isSemanticVision,
+      visualConfidence: visionResult.visualConfidence,
+      findings,
     };
   }
 }
