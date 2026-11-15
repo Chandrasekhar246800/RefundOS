@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { DecisionProviderFactory } from '@/services/decision-providers/factory';
-import { JevDecisionProvider } from '@/services/decision-providers/jev-provider';
+import { LayaDecisionProvider } from '@/services/decision-providers/laya-provider';
 import { z } from 'zod';
 
 const ProviderSettingsSchema = z.object({
-  activeProvider: z.enum(['JEV', 'LOCAL_DEMO']).optional(),
-  jevApiKey: z.string().optional(),
-  jevBaseUrl: z.string().url().optional(),
-  jevModel: z.string().optional(),
+  activeProvider: z.enum(['LAYA', 'LOCAL_DEMO']).optional(),
+  layaApiKey: z.string().optional(),
+  layaBaseUrl: z.string().url().optional(),
+  layaModel: z.string().optional(),
   concurrencyLimit: z.number().int().min(1).max(10).optional(),
   requestTimeoutMs: z.number().int().min(1000).max(60000).optional(),
 });
@@ -19,13 +19,13 @@ export async function GET() {
 
     const [modelSetting, baseUrlSetting, concurrencySetting, timeoutSetting] =
       await Promise.all([
-        prisma.systemSetting.findUnique({ where: { key: 'JEV_MODEL' } }),
-        prisma.systemSetting.findUnique({ where: { key: 'JEV_API_BASE_URL' } }),
+        prisma.systemSetting.findUnique({ where: { key: 'LAYA_MODEL' } }),
+        prisma.systemSetting.findUnique({ where: { key: 'LAYA_API_BASE_URL' } }),
         prisma.systemSetting.findUnique({ where: { key: 'CONCURRENCY_LIMIT' } }),
         prisma.systemSetting.findUnique({ where: { key: 'REQUEST_TIMEOUT_MS' } }),
       ]);
 
-    const jev = new JevDecisionProvider();
+    const laya = new LayaDecisionProvider();
 
     // Redacted view: NEVER expose API key to client
     return NextResponse.json({
@@ -34,9 +34,9 @@ export async function GET() {
         activeProvider: status.activeProvider,
         isFallback: status.isFallback,
         statusMessage: status.statusMessage,
-        jevConfigured: jev.isConfigured(),
-        jevModel: modelSetting?.value || process.env.JEV_MODEL || 'jev-latest',
-        jevBaseUrl: baseUrlSetting?.value || process.env.JEV_API_BASE_URL || 'https://api.typesafe.ai/v1',
+        layaConfigured: laya.isConfigured(),
+        layaModel: modelSetting?.value || process.env.LAYA_MODEL || 'typed-decisions',
+        layaBaseUrl: baseUrlSetting?.value || process.env.LAYA_API_BASE_URL || 'https://api.laya-ai.com',
         concurrencyLimit: parseInt(concurrencySetting?.value || '3', 10),
         requestTimeoutMs: parseInt(timeoutSetting?.value || '15000', 10),
         environment: 'DEMO / SIMULATED',
@@ -60,19 +60,19 @@ export async function PATCH(request: Request) {
       });
     }
 
-    if (validated.jevModel) {
+    if (validated.layaModel) {
       await prisma.systemSetting.upsert({
-        where: { key: 'JEV_MODEL' },
-        update: { value: validated.jevModel },
-        create: { key: 'JEV_MODEL', value: validated.jevModel },
+        where: { key: 'LAYA_MODEL' },
+        update: { value: validated.layaModel },
+        create: { key: 'LAYA_MODEL', value: validated.layaModel },
       });
     }
 
-    if (validated.jevBaseUrl) {
+    if (validated.layaBaseUrl) {
       await prisma.systemSetting.upsert({
-        where: { key: 'JEV_API_BASE_URL' },
-        update: { value: validated.jevBaseUrl },
-        create: { key: 'JEV_API_BASE_URL', value: validated.jevBaseUrl },
+        where: { key: 'LAYA_API_BASE_URL' },
+        update: { value: validated.layaBaseUrl },
+        create: { key: 'LAYA_API_BASE_URL', value: validated.layaBaseUrl },
       });
     }
 
@@ -92,13 +92,13 @@ export async function PATCH(request: Request) {
       });
     }
 
-    // If API key is updated, update server environment or encrypted store
-    if (validated.jevApiKey !== undefined && validated.jevApiKey.trim().length > 0) {
-      process.env.JEV_API_KEY = validated.jevApiKey.trim();
+    // Securely update API key server-side only
+    if (validated.layaApiKey !== undefined && validated.layaApiKey.trim().length > 0) {
+      process.env.LAYA_API_KEY = validated.layaApiKey.trim();
       await prisma.systemSetting.upsert({
-        where: { key: 'JEV_API_KEY_CONFIGURED' },
+        where: { key: 'LAYA_API_KEY_CONFIGURED' },
         update: { value: 'true' },
-        create: { key: 'JEV_API_KEY_CONFIGURED', value: 'true' },
+        create: { key: 'LAYA_API_KEY_CONFIGURED', value: 'true' },
       });
     }
 
@@ -110,8 +110,8 @@ export async function PATCH(request: Request) {
         actor: 'demo_operator',
         details: JSON.stringify({
           activeProvider: validated.activeProvider,
-          jevModel: validated.jevModel,
-          apiKeyUpdated: Boolean(validated.jevApiKey),
+          layaModel: validated.layaModel,
+          apiKeyUpdated: Boolean(validated.layaApiKey),
         }),
       },
     });

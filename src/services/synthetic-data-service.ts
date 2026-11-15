@@ -521,13 +521,14 @@ export class SyntheticDataService {
     }
 
     const now = new Date();
-    const batchRef = `BATCH-${Math.floor(100000 + prng() * 900000)}`;
+    const timeSalt = Date.now().toString().slice(-5);
+    const batchRef = `BATCH-${timeSalt}-${Math.floor(1000 + prng() * 9000)}`;
 
     const generatedItems = selectedScenarios.map((sc, index) => {
       const itemNum = String(index + 1).padStart(3, '0');
-      const orderRef = `ORD-${product.sku.slice(0, 3)}-${Math.floor(100000 + prng() * 900000)}`;
-      const customerRef = `CUST-${Math.floor(10000 + prng() * 90000)}`;
-      const requestRef = `REF-${product.sku.slice(0, 3)}-${Math.floor(100000 + prng() * 900000)}`;
+      const orderRef = `ORD-${product.sku.slice(0, 3)}-${timeSalt}-${Math.floor(1000 + prng() * 9000)}-${itemNum}`;
+      const customerRef = `CUST-${timeSalt}-${Math.floor(1000 + prng() * 9000)}-${itemNum}`;
+      const requestRef = `REF-${product.sku.slice(0, 3)}-${timeSalt}-${Math.floor(1000 + prng() * 9000)}-${itemNum}`;
 
       // Calculate timestamps
       const daysAgoPurchased = (sc.daysAfterDelivery || 5) + Math.floor(prng() * 10) + 5;

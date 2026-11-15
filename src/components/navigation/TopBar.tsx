@@ -76,7 +76,7 @@ export function TopBar() {
           className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
             providerStatus?.isFallback
               ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
-              : providerStatus?.activeProvider === 'JEV'
+              : providerStatus?.activeProvider === 'LAYA'
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
               : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
           }`}

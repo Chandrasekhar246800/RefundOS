@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { DecisionProviderFactory } from '@/services/decision-providers/factory';
-import { JevDecisionProvider } from '@/services/decision-providers/jev-provider';
+import { LayaDecisionProvider } from '@/services/decision-providers/laya-provider';
 import { LocalDemoDecisionProvider } from '@/services/decision-providers/local-demo-provider';
 import { z } from 'zod';
 
 const TestSchema = z.object({
-  provider: z.enum(['JEV', 'LOCAL_DEMO']).optional(),
+  provider: z.enum(['LAYA', 'LOCAL_DEMO']).optional(),
 });
 
 export async function POST(request: Request) {
@@ -16,9 +16,9 @@ export async function POST(request: Request) {
     const startTime = Date.now();
     let result;
 
-    if (validated.provider === 'JEV') {
-      const jev = new JevDecisionProvider();
-      result = await jev.checkConnection();
+    if (validated.provider === 'LAYA') {
+      const laya = new LayaDecisionProvider();
+      result = await laya.checkConnection();
     } else if (validated.provider === 'LOCAL_DEMO') {
       const local = new LocalDemoDecisionProvider();
       result = await local.checkConnection();

@@ -10,7 +10,7 @@ export type RefundStatus =
 
 export type DecisionOutcome = 'APPROVE' | 'REJECT' | 'MANUAL_REVIEW';
 
-export type ProviderType = 'JEV' | 'LOCAL_DEMO';
+export type ProviderType = 'LAYA' | 'LOCAL_DEMO' | 'JEV';
 
 export interface EvidenceItem {
   type: 'PHOTO' | 'CARRIER_RECORD' | 'INSPECTION' | 'INVOICE' | 'CUSTOMER_AFFIDAVIT' | 'FULFILLMENT_LOG';

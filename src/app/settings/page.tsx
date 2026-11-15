@@ -19,10 +19,10 @@ export default function SettingsPage() {
   const { providerStatus, refreshProviderStatus, addToast } = useApp();
 
   // Provider configuration state
-  const [activeProvider, setActiveProvider] = useState<'JEV' | 'LOCAL_DEMO'>('LOCAL_DEMO');
-  const [jevApiKey, setJevApiKey] = useState('');
-  const [jevBaseUrl, setJevBaseUrl] = useState('https://api.typesafe.ai/v1');
-  const [jevModel, setJevModel] = useState('jev-latest');
+  const [activeProvider, setActiveProvider] = useState<'LAYA' | 'LOCAL_DEMO'>('LAYA');
+  const [layaApiKey, setLayaApiKey] = useState('');
+  const [layaBaseUrl, setLayaBaseUrl] = useState('https://api.laya-ai.com');
+  const [layaModel, setLayaModel] = useState('typed-decisions');
   const [concurrencyLimit, setConcurrencyLimit] = useState(3);
   const [requestTimeoutMs, setRequestTimeoutMs] = useState(15000);
   const [savingProvider, setSavingProvider] = useState(false);
@@ -48,8 +48,8 @@ export default function SettingsPage() {
 
       if (provData.success) {
         setActiveProvider(provData.data.activeProvider);
-        setJevBaseUrl(provData.data.jevBaseUrl);
-        setJevModel(provData.data.jevModel);
+        setLayaBaseUrl(provData.data.layaBaseUrl);
+        setLayaModel(provData.data.layaModel);
         setConcurrencyLimit(provData.data.concurrencyLimit);
         setRequestTimeoutMs(provData.data.requestTimeoutMs);
       }
@@ -73,13 +73,13 @@ export default function SettingsPage() {
     try {
       const payload: any = {
         activeProvider,
-        jevBaseUrl,
-        jevModel,
+        layaBaseUrl,
+        layaModel,
         concurrencyLimit,
         requestTimeoutMs,
       };
-      if (jevApiKey.trim().length > 0) {
-        payload.jevApiKey = jevApiKey.trim();
+      if (layaApiKey.trim().length > 0) {
+        payload.layaApiKey = layaApiKey.trim();
       }
 
       const res = await fetch('/api/settings/provider', {
@@ -90,7 +90,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.success) {
         addToast(data.message, 'success');
-        setJevApiKey(''); // Clear client field after sending to server
+        setLayaApiKey(''); // Clear client field after sending to server
         await refreshProviderStatus();
         fetchSettings();
       } else {
@@ -103,7 +103,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleTestConnection = async (targetProvider: 'JEV' | 'LOCAL_DEMO') => {
+  const handleTestConnection = async (targetProvider: 'LAYA' | 'LOCAL_DEMO') => {
     setTestingConnection(true);
     setTestResult(null);
     try {
@@ -118,7 +118,7 @@ export default function SettingsPage() {
         if (data.data.connected) {
           addToast(`Connection check succeeded (${data.data.durationMs}ms)`, 'success');
         } else {
-          addToast(`Connection test failed: ${data.data.message}`, 'error');
+          addToast(`Connection test note: ${data.data.message}`, 'info');
         }
       }
     } catch {
@@ -165,7 +165,7 @@ export default function SettingsPage() {
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">Settings & Configuration</h2>
         <p className="text-xs text-slate-500 mt-1">
-          Configure AI decision providers, credentials, timeout thresholds, and versioned refund policy guardrails.
+          Configure Laya AI decision provider credentials, timeout thresholds, and versioned refund policy guardrails.
         </p>
       </div>
 
@@ -179,7 +179,7 @@ export default function SettingsPage() {
             <div>
               <h3 className="font-bold text-sm text-slate-900">AI Decision Provider Selection</h3>
               <p className="text-xs text-slate-500">
-                Primary decision provider: TypeSafe AI Jev System One or Local Deterministic Engine.
+                Primary decision provider: Laya API System One (Choice, Score, Noul) or Local Deterministic Engine.
               </p>
             </div>
           </div>
@@ -203,6 +203,31 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label
                 className={`p-4 rounded-xl border cursor-pointer transition-colors flex items-start gap-3 ${
+                  activeProvider === 'LAYA'
+                    ? 'border-emerald-500 bg-emerald-50/20'
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="provider"
+                  value="LAYA"
+                  checked={activeProvider === 'LAYA'}
+                  onChange={() => setActiveProvider('LAYA')}
+                  className="mt-1 accent-emerald-600"
+                />
+                <div>
+                  <span className="font-bold text-xs text-slate-900 block">
+                    Laya API Decision Engine (System One) [Primary]
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-0.5 block leading-relaxed">
+                    Evaluates refund claims using structured decision primitives (Choice, Score, Noul) for legitimacy, policy compliance, and fraud risk.
+                  </span>
+                </div>
+              </label>
+
+              <label
+                className={`p-4 rounded-xl border cursor-pointer transition-colors flex items-start gap-3 ${
                   activeProvider === 'LOCAL_DEMO'
                     ? 'border-emerald-500 bg-emerald-50/20'
                     : 'border-slate-200 hover:bg-slate-50'
@@ -218,56 +243,31 @@ export default function SettingsPage() {
                 />
                 <div>
                   <span className="font-bold text-xs text-slate-900 block">
-                    Local Demo Decision Engine (Deterministic)
+                    Local Demo Decision Engine (Deterministic Fallback)
                   </span>
                   <span className="text-[11px] text-slate-500 mt-0.5 block leading-relaxed">
                     Zero-dependency instant local evaluation engine using deterministic rules, photo metadata inspection, and carrier telemetry.
                   </span>
                 </div>
               </label>
-
-              <label
-                className={`p-4 rounded-xl border cursor-pointer transition-colors flex items-start gap-3 ${
-                  activeProvider === 'JEV'
-                    ? 'border-emerald-500 bg-emerald-50/20'
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="provider"
-                  value="JEV"
-                  checked={activeProvider === 'JEV'}
-                  onChange={() => setActiveProvider('JEV')}
-                  className="mt-1 accent-emerald-600"
-                />
-                <div>
-                  <span className="font-bold text-xs text-slate-900 block">
-                    TypeSafe AI Jev Decision API (System One)
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-0.5 block leading-relaxed">
-                    Official discriminative System One decision model evaluating structured context payloads.
-                  </span>
-                </div>
-              </label>
             </div>
           </div>
 
-          {/* Jev API Configuration fields */}
+          {/* Laya API Configuration fields */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
             <h4 className="font-semibold text-xs text-slate-800">
-              TypeSafe AI Jev Endpoint & Secret Settings
+              Laya API Endpoint & Secret Settings
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Jev API Base URL
+                  Laya API Base URL
                 </label>
                 <input
                   type="text"
-                  value={jevBaseUrl}
-                  onChange={(e) => setJevBaseUrl(e.target.value)}
+                  value={layaBaseUrl}
+                  onChange={(e) => setLayaBaseUrl(e.target.value)}
                   className="w-full text-xs px-3 py-2 border rounded-md bg-white font-mono focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
@@ -278,35 +278,35 @@ export default function SettingsPage() {
                 </label>
                 <input
                   type="text"
-                  value={jevModel}
-                  onChange={(e) => setJevModel(e.target.value)}
+                  value={layaModel}
+                  onChange={(e) => setLayaModel(e.target.value)}
                   className="w-full text-xs px-3 py-2 border rounded-md bg-white font-mono focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div className="md:col-span-2">
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Jev API Key (Stored Server-Side Only)
+                  Laya API Key (Stored Server-Side Only)
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="password"
                     placeholder={
-                      providerStatus?.jevConfigured
+                      providerStatus?.layaConfigured
                         ? '•••••••••••••••••••••••• (API key configured)'
-                        : 'Enter jv_live_... API key'
+                        : 'Enter sk_... API key'
                     }
-                    value={jevApiKey}
-                    onChange={(e) => setJevApiKey(e.target.value)}
+                    value={layaApiKey}
+                    onChange={(e) => setLayaApiKey(e.target.value)}
                     className="flex-1 text-xs px-3 py-2 border rounded-md bg-white font-mono focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                   <button
                     type="button"
-                    onClick={() => handleTestConnection('JEV')}
+                    onClick={() => handleTestConnection('LAYA')}
                     disabled={testingConnection}
                     className="px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-md shadow-sm"
                   >
-                    {testingConnection ? 'Testing...' : 'Test Jev Connection'}
+                    {testingConnection ? 'Testing...' : 'Test Laya Connection'}
                   </button>
                   <button
                     type="button"
@@ -317,7 +317,7 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Never rendered back to the browser. Redacted from logs and client telemetry.
+                  Never rendered back to the browser or committed to Git. Redacted from logs and client telemetry.
                 </p>
               </div>
             </div>
@@ -328,12 +328,12 @@ export default function SettingsPage() {
                 className={`p-3 rounded-lg border text-xs ${
                   testResult.connected
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
                 }`}
               >
                 <div className="flex items-center justify-between font-semibold">
                   <span>
-                    {testResult.connected ? '✓ Connection Verified' : '✗ Connection Failed'}
+                    {testResult.connected ? '✓ Connection Verified' : 'ℹ Connection Test Result'}
                   </span>
                   <span className="font-mono text-[10px]">{testResult.durationMs}ms</span>
                 </div>
@@ -396,13 +396,13 @@ export default function SettingsPage() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-slate-900">Versioned Refund Policy</h3>
+                  <h3 className="font-bold text-sm text-slate-900">Versioned Refund Policy Guardrails</h3>
                   <span className="font-mono text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                     Active: {policy.version}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Rules passed into the AI decision packet and used for state transition guardrails.
+                  Policy thresholds passed into Laya AI and applied as strict backend state transition guardrails.
                 </p>
               </div>
             </div>

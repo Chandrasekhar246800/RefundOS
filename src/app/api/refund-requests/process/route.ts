@@ -8,7 +8,7 @@ const ProcessSchema = z.object({
   batchId: z.string().optional(),
   requestIds: z.array(z.string()).optional(),
   requestId: z.string().optional(),
-  forcedProvider: z.enum(['JEV', 'LOCAL_DEMO']).optional(),
+  forcedProvider: z.enum(['LAYA', 'LOCAL_DEMO', 'JEV']).optional(),
 });
 
 export async function POST(request: Request) {

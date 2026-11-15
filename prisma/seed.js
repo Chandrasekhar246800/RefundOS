@@ -34,9 +34,9 @@ async function main() {
 
   // 2. System Settings
   const settings = [
-    { key: 'ACTIVE_PROVIDER', value: 'LOCAL_DEMO' },
-    { key: 'JEV_API_BASE_URL', value: 'https://api.typesafe.ai/v1' },
-    { key: 'JEV_MODEL', value: 'jev-latest' },
+    { key: 'ACTIVE_PROVIDER', value: 'LAYA' },
+    { key: 'LAYA_API_BASE_URL', value: 'https://api.laya-ai.com' },
+    { key: 'LAYA_MODEL', value: 'typed-decisions' },
     { key: 'CONCURRENCY_LIMIT', value: '3' },
     { key: 'REQUEST_TIMEOUT_MS', value: '15000' },
   ];

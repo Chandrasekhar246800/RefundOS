@@ -6,8 +6,9 @@ interface ProviderStatus {
   activeProvider: string;
   isFallback: boolean;
   statusMessage: string;
-  jevConfigured: boolean;
-  jevModel: string;
+  layaConfigured: boolean;
+  layaModel?: string;
+  jevConfigured?: boolean;
   environment: string;
 }
 

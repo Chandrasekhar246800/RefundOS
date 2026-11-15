@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { DecisionEngine } from '../src/services/decision-engine';
 import { LocalDemoDecisionProvider } from '../src/services/decision-providers/local-demo-provider';
 import { DecisionProviderFactory } from '../src/services/decision-providers/factory';
-import { JevDecisionProvider } from '../src/services/decision-providers/jev-provider';
+import { LayaDecisionProvider } from '../src/services/decision-providers/laya-provider';
 import { SyntheticDataService } from '../src/services/synthetic-data-service';
 import { MetricsService } from '../src/services/metrics-service';
 import { prisma } from '../src/lib/prisma';
 
-describe('AI Refund Management Platform - Core Verification', () => {
+describe('AI Refund Management Platform - Laya & Safety Tests', () => {
   const localProvider = new LocalDemoDecisionProvider();
 
   const standardPolicy = {
@@ -56,7 +56,7 @@ describe('AI Refund Management Platform - Core Verification', () => {
       totalOrders: 5,
       priorRefundCount: 0,
       priorReturnCount: 0,
-      priorChargebackCount: 0,
+      priorChargebacksCount: 0,
     };
 
     const mockProduct = {
@@ -78,6 +78,80 @@ describe('AI Refund Management Platform - Core Verification', () => {
     expect(JSON.stringify(packet)).not.toContain('LEGITIMATE');
     expect(packet.requestId).toBe('req_123');
     expect(packet.daysSinceDelivery).toBe(2);
+  });
+
+  it('RULE: Laya Provider response normalizer handles Choice, Score, and Noul primitives', () => {
+    const laya = new LayaDecisionProvider({ apiKey: 'sk_test_key_mock' });
+
+    const mockInput = {
+      request: {
+        requestId: 'req_mock',
+        orderRef: 'ORD-1',
+        customerRef: 'CUST-1',
+        productName: 'Test Product',
+        productSku: 'SKU-1',
+        productCategory: 'Apparel',
+        orderAmount: 8500,
+        requestedAmount: 8500,
+        currency: 'USD',
+        quantity: 1,
+        purchasedAt: new Date().toISOString(),
+        deliveredAt: new Date().toISOString(),
+        daysSinceDelivery: 2,
+        fulfilmentStatus: 'DELIVERED',
+        reason: 'DAMAGED_ITEM',
+        customerMessage: 'Item was scratched',
+        customerAccountAgeDays: 100,
+        customerTotalOrders: 4,
+        customerPriorRefunds: 0,
+        customerPriorReturns: 0,
+        customerPriorChargebacks: 0,
+        evidence: [],
+        trackingSignals: {
+          carrier: 'FedEx',
+          trackingNumber: '1234',
+          status: 'DELIVERED',
+          deliveryGpsMatch: true,
+          signatureObtained: false,
+        },
+      },
+      policy: standardPolicy,
+    };
+
+    const mockLayaRaw = {
+      model: 'typed-decisions',
+      answers: {
+        decision: {
+          type: 'choice',
+          choice: 'APPROVE',
+          confidence: 0.96,
+        },
+        risk_score: {
+          type: 'score',
+          score: 12,
+        },
+        legitimacy_probability: {
+          type: 'noul',
+          noul: 0.94,
+        },
+        policy_compliance: {
+          type: 'noul',
+          noul: 0.99,
+        },
+        evidence_integrity: {
+          type: 'noul',
+          noul: 0.92,
+        },
+      },
+    };
+
+    const normalized = (laya as any).normalizeLayaResponse(mockLayaRaw, mockInput);
+
+    expect(normalized.decision).toBe('APPROVE');
+    expect(normalized.riskScore).toBe(12);
+    expect(normalized.confidence).toBe(0.96);
+    expect(normalized.policyChecks.length).toBeGreaterThanOrEqual(3);
+    expect(normalized.rationale).toContain('Laya System One');
   });
 
   it('RULE: Local Demo Provider approves timely legitimate request with verified evidence', async () => {
@@ -217,15 +291,22 @@ describe('AI Refund Management Platform - Core Verification', () => {
     expect(decision.reasonCodes).toContain('HIGH_VALUE_TRANSACTION');
   });
 
-  it('RULE: Provider Factory cleanly falls back to Local Demo Engine if Jev unconfigured', async () => {
-    // When Jev is unconfigured
-    const { provider, isFallback, providerName, statusMessage } =
-      await DecisionProviderFactory.getProvider('JEV');
+  it('RULE: Provider Factory cleanly identifies active provider and preserves attribution', async () => {
+    const laya = new LayaDecisionProvider();
+    const isConfigured = laya.isConfigured();
 
-    // JEV has no API key set in this environment, so fallback is active
-    expect(isFallback).toBe(true);
-    expect(providerName).toBe('LOCAL_DEMO');
-    expect(statusMessage).toContain('Jev not configured — using Demo Decision Engine');
+    const { provider, isFallback, providerName, statusMessage } =
+      await DecisionProviderFactory.getProvider('LAYA');
+
+    if (isConfigured) {
+      expect(providerName).toBe('LAYA');
+      expect(isFallback).toBe(false);
+      expect(statusMessage).toContain('Laya API (System One) Active');
+    } else {
+      expect(providerName).toBe('LOCAL_DEMO');
+      expect(isFallback).toBe(true);
+      expect(statusMessage).toContain('Laya not configured — using Demo Decision Engine');
+    }
   });
 
   it('RULE: Synthetic Data Generator generates balanced 10/10 split and respects seed', async () => {
@@ -240,7 +321,7 @@ describe('AI Refund Management Platform - Core Verification', () => {
       productId: product!.id,
       legitimateCount: 10,
       nonLegitimateCount: 10,
-      seed: 'antigravity-seed-123',
+      seed: 'founderlabs-laya-seed',
       dryRun: true,
     });
 

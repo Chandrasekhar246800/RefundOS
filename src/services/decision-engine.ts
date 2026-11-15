@@ -231,7 +231,7 @@ export class DecisionEngine {
           where: { refundRequestId: request.id },
           update: {
             provider: providerName,
-            modelOrDeployment: providerName === 'JEV' ? process.env.JEV_MODEL || 'jev-latest' : 'deterministic-v2',
+            modelOrDeployment: providerName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'deterministic-v2',
             policyVersion: policy.version,
             decision: decision.decision,
             riskScore: decision.riskScore ?? null,
@@ -253,7 +253,7 @@ export class DecisionEngine {
           create: {
             refundRequestId: request.id,
             provider: providerName,
-            modelOrDeployment: providerName === 'JEV' ? process.env.JEV_MODEL || 'jev-latest' : 'deterministic-v2',
+            modelOrDeployment: providerName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'deterministic-v2',
             policyVersion: policy.version,
             decision: decision.decision,
             riskScore: decision.riskScore ?? null,

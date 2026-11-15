@@ -1,5 +1,5 @@
 import { RefundDecisionProvider } from '@/types';
-import { JevDecisionProvider } from './jev-provider';
+import { LayaDecisionProvider } from './laya-provider';
 import { LocalDemoDecisionProvider } from './local-demo-provider';
 import { prisma } from '@/lib/prisma';
 
@@ -7,7 +7,7 @@ export class DecisionProviderFactory {
   static async getProvider(forcedProvider?: string): Promise<{
     provider: RefundDecisionProvider;
     isFallback: boolean;
-    providerName: 'JEV' | 'LOCAL_DEMO';
+    providerName: 'LAYA' | 'LOCAL_DEMO';
     statusMessage: string;
   }> {
     // Read configured provider from database system settings if available
@@ -22,32 +22,32 @@ export class DecisionProviderFactory {
         }
       } catch (e) {
         // Fallback to env
-        requestedProvider = process.env.DEFAULT_DECISION_PROVIDER || 'LOCAL_DEMO';
+        requestedProvider = process.env.DEFAULT_DECISION_PROVIDER || 'LAYA';
       }
     }
 
-    if (requestedProvider === 'JEV') {
-      const jev = new JevDecisionProvider();
-      if (jev.isConfigured()) {
+    if (requestedProvider === 'LAYA') {
+      const laya = new LayaDecisionProvider();
+      if (laya.isConfigured()) {
         return {
-          provider: jev,
+          provider: laya,
           isFallback: false,
-          providerName: 'JEV',
-          statusMessage: 'Jev AI (TypeSafe System One) Active',
+          providerName: 'LAYA',
+          statusMessage: 'Laya API (System One) Active',
         };
       } else {
-        // Jev requested but not configured -> clean fallback to LocalDemo
+        // Laya requested but not configured -> clean fallback to LocalDemo
         const local = new LocalDemoDecisionProvider();
         return {
           provider: local,
           isFallback: true,
           providerName: 'LOCAL_DEMO',
-          statusMessage: 'Jev not configured — using Demo Decision Engine',
+          statusMessage: 'Laya not configured — using Demo Decision Engine',
         };
       }
     }
 
-    // Default Local Demo Engine
+    // Explicit Local Demo Engine
     const local = new LocalDemoDecisionProvider();
     return {
       provider: local,
@@ -61,13 +61,13 @@ export class DecisionProviderFactory {
     activeProvider: string;
     isFallback: boolean;
     statusMessage: string;
-    jevConfigured: boolean;
+    layaConfigured: boolean;
     localDemoReady: boolean;
   }> {
-    const jev = new JevDecisionProvider();
+    const laya = new LayaDecisionProvider();
     const local = new LocalDemoDecisionProvider();
 
-    let configuredProvider = 'LOCAL_DEMO';
+    let configuredProvider = 'LAYA';
     try {
       const setting = await prisma.systemSetting.findUnique({
         where: { key: 'ACTIVE_PROVIDER' },
@@ -75,18 +75,18 @@ export class DecisionProviderFactory {
       if (setting?.value) configuredProvider = setting.value;
     } catch {}
 
-    const isFallback = configuredProvider === 'JEV' && !jev.isConfigured();
+    const isFallback = configuredProvider === 'LAYA' && !laya.isConfigured();
     const activeProvider = isFallback ? 'LOCAL_DEMO' : configuredProvider;
 
     return {
       activeProvider,
       isFallback,
       statusMessage: isFallback
-        ? 'Jev not configured — using Demo Decision Engine'
-        : activeProvider === 'JEV'
-        ? 'Jev AI Active'
+        ? 'Laya not configured — using Demo Decision Engine'
+        : activeProvider === 'LAYA'
+        ? 'Laya API Active'
         : 'Demo Decision Engine Active',
-      jevConfigured: jev.isConfigured(),
+      layaConfigured: laya.isConfigured(),
       localDemoReady: true,
     };
   }
