@@ -1,0 +1,183 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  category    String
+  currency    String    @default("USD")
+  status      String    @default("ACTIVE") // ACTIVE, ARCHIVED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+  orders      Order[]
+  batches     ProcessingBatch[]
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  brandId        String
+  brand          Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  name           String
+  sku            String          @unique
+  category       String
+  description    String?
+  unitPrice      Int             // Stored in minor units (e.g. cents)
+  currency       String          @default("USD")
+  status         String          @default("ACTIVE") // ACTIVE, INACTIVE
+  imageUrl       String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  orders         Order[]
+  refundRequests RefundRequest[]
+  batches        ProcessingBatch[]
+}
+
+model Customer {
+  id                    String          @id @default(cuid())
+  syntheticCustomerRef  String          @unique
+  accountCreatedAt      DateTime
+  totalOrders           Int             @default(1)
+  priorRefundCount      Int             @default(0)
+  priorReturnCount      Int             @default(0)
+  priorChargebackCount  Int             @default(0)
+  createdAt             DateTime        @default(now())
+
+  orders                Order[]
+  refundRequests        RefundRequest[]
+}
+
+model Order {
+  id               String          @id @default(cuid())
+  orderRef         String          @unique
+  customerId       String
+  customer         Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  brandId          String
+  brand            Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity         Int             @default(1)
+  amount           Int             // in minor units (cents)
+  currency         String          @default("USD")
+  purchasedAt      DateTime
+  deliveredAt      DateTime?
+  fulfilmentStatus String          // DELIVERED, IN_TRANSIT, CANCELLED, PENDING
+  deliveryEvidence String?         // JSON string with carrier, tracking, delivery confirmation details
+  createdAt        DateTime        @default(now())
+
+  refundRequests   RefundRequest[]
+}
+
+model RefundRequest {
+  id               String              @id @default(cuid())
+  requestRef       String              @unique
+  orderId          String
+  order            Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId       String
+  customer         Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reason           String              // DAMAGED_ITEM, WRONG_ITEM, NOT_RECEIVED, DUPLICATE_CHARGE, DEFECTIVE, CHANGED_MIND, FRAUDULENT_CLAIM
+  customerMessage  String?
+  requestedAmount  Int                 // in minor units (cents)
+  currency         String              @default("USD")
+  requestedAt      DateTime            @default(now())
+  evidence         String?             // JSON string describing submitted proof/metadata
+  groundTruthLabel String              // LEGITIMATE | NON_LEGITIMATE (kept separate from AI inputs)
+  status           String              @default("PENDING") // PENDING, PROCESSING, APPROVED, REJECTED, MANUAL_REVIEW, FAILED
+  batchId          String?
+  batch            ProcessingBatch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  decision         Decision?
+  transaction      RefundTransaction?
+}
+
+model Decision {
+  id                       String        @id @default(cuid())
+  refundRequestId          String        @unique
+  refundRequest            RefundRequest @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
+  provider                 String        // JEV | LOCAL_DEMO
+  modelOrDeployment        String?
+  policyVersion            String
+  decision                 String        // APPROVE | REJECT | MANUAL_REVIEW
+  riskScore                Int?          // 0 - 100
+  confidence               Float?        // 0.0 - 1.0
+  reasonCodes              String        // JSON array of strings
+  rationale                String
+  evidenceFor              String        // JSON array of strings
+  evidenceAgainst          String        // JSON array of strings
+  missingInformation       String        // JSON array of strings
+  policyChecks             String        // JSON array of objects { rule, result, explanation }
+  recommendedNextAction    String?
+  inputSnapshot            String        // JSON string of input evidence packet (WITHOUT ground truth)
+  providerResponseSanitized String       // JSON string of raw provider response (redacted secrets)
+  createdAt                DateTime      @default(now())
+}
+
+model RefundTransaction {
+  id              String        @id @default(cuid())
+  refundRequestId String        @unique
+  refundRequest   RefundRequest @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
+  amount          Int           // minor units
+  currency        String        @default("USD")
+  status          String        @default("SIMULATED_COMPLETED")
+  reference       String        @unique // e.g. SIM-TXN-XXXX
+  createdAt       DateTime      @default(now())
+}
+
+model ProcessingBatch {
+  id                String          @id @default(cuid())
+  brandId           String
+  brand             Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  status            String          @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  totalCount        Int             @default(0)
+  processedCount    Int             @default(0)
+  approvedCount     Int             @default(0)
+  rejectedCount     Int             @default(0)
+  manualReviewCount Int             @default(0)
+  failedCount       Int             @default(0)
+  provider          String          @default("LOCAL_DEMO")
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime        @default(now())
+
+  requests          RefundRequest[]
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  entityType String   // BRAND, PRODUCT, REFUND_REQUEST, BATCH, DECISION, SETTING, DEMO
+  entityId   String
+  eventType  String   // CREATED, UPDATED, GENERATED, PROCESSING_STARTED, PROCESSED, DECIDED, TRANSACTION_CREATED, RETRIED, RESET
+  actor      String   @default("demo_operator")
+  details    String?  // JSON string
+  createdAt  DateTime @default(now())
+}
+
+model RefundPolicy {
+  id            String   @id @default(cuid())
+  version       String   @unique
+  name          String
+  configuration String   // JSON string of rules & thresholds
+  active        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String   // JSON string or string
+  updatedAt DateTime @updatedAt
+}
