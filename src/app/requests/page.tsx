@@ -23,6 +23,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import Link from 'next/link';
+import { EvidenceIntelligenceViewer } from '@/components/evidence/EvidenceIntelligenceViewer';
 
 export const dynamic = 'force-dynamic';
 
@@ -777,44 +778,46 @@ function RequestsContent() {
                 </div>
               </div>
 
-              {/* Evidence Items */}
-              <div className="space-y-2">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                  Evidence Submitted ({activeRequest.parsedEvidence.length})
-                </span>
-                {activeRequest.parsedEvidence.length === 0 ? (
-                  <p className="text-slate-400 italic">No proof files or affidavits submitted.</p>
-                ) : (
-                  activeRequest.parsedEvidence.map((ev: any, i: number) => (
+              {/* REFUND OS 2.0 Multimodal Evidence & Intelligence Viewer */}
+              <EvidenceIntelligenceViewer
+                requestId={activeRequest.id}
+                evidenceFiles={activeRequest.evidenceFiles || []}
+                orderDeliveredAt={activeRequest.order?.deliveredAt}
+                onRefresh={() => openDetailDrawer(activeRequest.id)}
+                addToast={addToast}
+              />
+
+              {/* Legacy Claim Metadata (if present from synthetic generator) */}
+              {activeRequest.parsedEvidence?.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    Customer Claim Declarations ({activeRequest.parsedEvidence.length})
+                  </span>
+                  {activeRequest.parsedEvidence.map((ev: any, i: number) => (
                     <div
                       key={i}
-                      className="p-3 bg-white rounded-lg border border-slate-200 flex items-start gap-3"
+                      className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-start gap-2.5 text-[11px]"
                     >
-                      <FileText className="w-4 h-4 text-slate-500 mt-0.5" />
+                      <FileText className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800">{ev.type}</span>
+                          <span className="font-semibold text-slate-800">{ev.type}</span>
                           <span
-                            className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                            className={`px-1.5 py-0.2 text-[9px] font-bold rounded ${
                               ev.verified
                                 ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
                             }`}
                           >
-                            {ev.verified ? 'Verified' : 'Unverified'}
+                            {ev.verified ? 'Claim Verified' : 'Claim Stated'}
                           </span>
                         </div>
-                        <p className="text-slate-600 mt-0.5">{ev.description}</p>
-                        {ev.metadata && (
-                          <pre className="mt-1.5 p-1.5 bg-slate-50 rounded text-[10px] text-slate-600 font-mono">
-                            {JSON.stringify(ev.metadata, null, 2)}
-                          </pre>
-                        )}
+                        <p className="text-slate-600 mt-0.5 text-[10px]">{ev.description}</p>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {/* Carrier Tracking Signals */}
               <div className="space-y-2">

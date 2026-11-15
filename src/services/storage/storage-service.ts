@@ -390,11 +390,15 @@ export class StorageService {
   }
 
   /**
-   * Lists all evidence files attached to a refund request.
+   * Lists all evidence files attached to a refund request with intelligence records.
    */
-  public static async listEvidenceFiles(refundRequestId: string): Promise<StorageFileMetadata[]> {
+  public static async listEvidenceFiles(refundRequestId: string): Promise<any[]> {
     const files = await prisma.evidenceFile.findMany({
       where: { refundRequestId },
+      include: {
+        imageAnalysis: true,
+        documentAnalysis: true,
+      },
       orderBy: { uploadedAt: 'desc' },
     });
 
@@ -407,7 +411,17 @@ export class StorageService {
       fileSize: f.fileSize,
       mimeType: f.mimeType,
       fileHash: f.fileHash,
+      perceptualHash: f.perceptualHash,
       uploadedAt: f.uploadedAt.toISOString(),
+      imageAnalysis: f.imageAnalysis,
+      documentAnalysis: f.documentAnalysis
+        ? {
+            ...f.documentAnalysis,
+            inconsistencies: f.documentAnalysis.inconsistencies
+              ? JSON.parse(f.documentAnalysis.inconsistencies)
+              : [],
+          }
+        : null,
     }));
   }
 }

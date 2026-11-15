@@ -173,9 +173,12 @@ export interface StorageUploadResult {
 
 export interface ImageInspectionInput {
   evidenceFileId: string;
-  filePath: string;
-  claimedReason: string;
-  orderDeliveredAt?: string | null;
+  filePath?: string;
+  claimedReason?: string;
+  orderDeliveredAt?: Date | string | null;
+  buffer?: Buffer;
+  mimeType?: string;
+  requestId?: string;
 }
 
 export interface ImageInspectionResult {
@@ -188,6 +191,17 @@ export interface ImageInspectionResult {
   exifDeviceModel?: string;
   authenticityScore: number; // 0 - 100
   analysisSummary: string;
+  width?: number;
+  height?: number;
+  format?: string;
+  qualityScore?: number; // 0 - 100
+  isBlurry?: boolean;
+  lightingIssue?: boolean;
+  perceptualHash?: string;
+  duplicateFound?: boolean;
+  duplicateDetails?: string;
+  provider?: string;
+  modelOrEngine?: string;
 }
 
 export interface IImageIntelligenceService {
@@ -196,22 +210,33 @@ export interface IImageIntelligenceService {
 
 export interface DocumentInspectionInput {
   evidenceFileId: string;
-  filePath: string;
-  expectedOrderId: string;
-  expectedOrderAmount: number;
+  filePath?: string;
+  expectedOrderId?: string;
+  expectedOrderAmount?: number;
   expectedTrackingNumber?: string;
+  buffer?: Buffer;
+  mimeType?: string;
+  requestId?: string;
 }
 
 export interface DocumentInspectionResult {
   documentType: 'INVOICE' | 'PACKING_SLIP' | 'RETURN_LABEL' | 'CARRIER_LOG' | 'POLICE_REPORT' | 'AFFIDAVIT';
   ocrText: string;
   extractedOrderId?: string;
+  extractedInvoiceNo?: string;
   extractedTracking?: string;
   extractedAmount?: number;
+  extractedTaxAmount?: number;
   extractedDate?: string;
+  extractedProductName?: string;
+  extractedSku?: string;
+  extractedCarrier?: string;
+  extractedDeliveryDate?: string;
+  extractedCustomerRef?: string;
   orderMatchStatus: 'MATCHED' | 'PARTIAL_MISMATCH' | 'CONTRADICTORY';
   confidenceScore: number;
   inconsistencies: string[];
+  provider?: string;
 }
 
 export interface IDocumentIntelligenceService {

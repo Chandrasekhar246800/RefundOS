@@ -222,6 +222,7 @@ model EvidenceFile {
   fileSize        Int                // in bytes
   mimeType        String
   fileHash        String             // SHA-256 for duplicate and tamper detection
+  perceptualHash  String?            // 64-bit dHash for visual similarity / near-duplicate detection
   uploadedAt      DateTime           @default(now())
 
   imageAnalysis    ImageAnalysis?
@@ -232,8 +233,14 @@ model ImageAnalysis {
   id                 String       @id @default(cuid())
   evidenceFileId     String       @unique
   evidenceFile       EvidenceFile @relation(fields: [evidenceFileId], references: [id], onDelete: Cascade)
+  width              Int?
+  height             Int?
+  format             String?
+  qualityScore       Int?         // 0 - 100 sharpness & clarity
+  isBlurry           Boolean      @default(false)
+  lightingIssue      Boolean      @default(false)
   damageDetected     Boolean      @default(false)
-  damageType         String?      // CRACKED, WATER_DAMAGE, TORN, DEFECTIVE, WRONG_ITEM
+  damageType         String?      // CRACKED, WATER_DAMAGE, TORN, DEFECTIVE, WRONG_ITEM, DENTED, SCRATCHED
   damageSeverity     String       @default("NONE") // NONE, LOW, MEDIUM, HIGH, SEVERE
   packagingCondition String       @default("UNOPENED") // UNOPENED, OPENED_INTACT, DAMAGED_TAMPERED
   tamperScore        Int          @default(0) // 0 - 100
@@ -241,23 +248,33 @@ model ImageAnalysis {
   exifDeviceModel    String?
   authenticityScore  Int          @default(100) // 0 - 100
   analysisSummary    String
+  provider           String       @default("LOCAL_CV") // LOCAL_CV, LAYA_VISION, EXTERNAL_VISION
+  modelOrEngine      String       @default("sharp-cv-v1")
   createdAt          DateTime     @default(now())
 }
 
 model DocumentAnalysis {
-  id                 String       @id @default(cuid())
-  evidenceFileId     String       @unique
-  evidenceFile       EvidenceFile @relation(fields: [evidenceFileId], references: [id], onDelete: Cascade)
-  documentType       String       // INVOICE, PACKING_SLIP, RETURN_LABEL, CARRIER_LOG, POLICE_REPORT, AFFIDAVIT
-  ocrText            String       // Full extracted text
-  extractedOrderId   String?
-  extractedTracking  String?
-  extractedAmount    Int?         // in minor units
-  extractedDate      DateTime?
-  orderMatchStatus   String       @default("MATCHED") // MATCHED, PARTIAL_MISMATCH, CONTRADICTORY
-  confidenceScore    Float        @default(1.0)
-  inconsistencies    String?      // JSON array of detected discrepancies
-  createdAt          DateTime     @default(now())
+  id                     String       @id @default(cuid())
+  evidenceFileId         String       @unique
+  evidenceFile           EvidenceFile @relation(fields: [evidenceFileId], references: [id], onDelete: Cascade)
+  documentType           String       // INVOICE, PACKING_SLIP, RETURN_LABEL, CARRIER_LOG, POLICE_REPORT, AFFIDAVIT
+  ocrText                String       // Full extracted text
+  extractedOrderId       String?
+  extractedInvoiceNo     String?
+  extractedTracking      String?
+  extractedAmount        Int?         // in minor units
+  extractedTaxAmount     Int?
+  extractedDate          DateTime?
+  extractedProductName   String?
+  extractedSku           String?
+  extractedCarrier       String?
+  extractedDeliveryDate  DateTime?
+  extractedCustomerRef   String?
+  orderMatchStatus       String       @default("MATCHED") // MATCHED, PARTIAL_MISMATCH, CONTRADICTORY
+  confidenceScore        Float        @default(1.0)
+  inconsistencies        String?      // JSON array of detected discrepancies
+  provider               String       @default("TESSERACT_OCR") // TESSERACT_OCR, PDF_PARSE, EXTERNAL_OCR
+  createdAt              DateTime     @default(now())
 }
 
 model DeliveryIntelligence {

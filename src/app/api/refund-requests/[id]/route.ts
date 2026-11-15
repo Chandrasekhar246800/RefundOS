@@ -28,6 +28,10 @@ export async function GET(
         },
         evidenceFiles: {
           orderBy: { uploadedAt: 'desc' },
+          include: {
+            imageAnalysis: true,
+            documentAnalysis: true,
+          },
         },
       },
     });
