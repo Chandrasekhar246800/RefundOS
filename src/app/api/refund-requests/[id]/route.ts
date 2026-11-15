@@ -12,6 +12,7 @@ export async function GET(
         product: { include: { brand: true } },
         customer: {
           include: {
+            riskProfile: true,
             orders: {
               take: 5,
               orderBy: { purchasedAt: 'desc' },
@@ -23,6 +24,7 @@ export async function GET(
         decision: true,
         transaction: true,
         batch: true,
+        fraudEvaluation: true,
         layaUsage: {
           orderBy: { createdAt: 'desc' },
         },
@@ -73,6 +75,43 @@ export async function GET(
       } catch {}
     }
 
+    let parsedFraudEvaluation = null;
+    if (refundRequest.fraudEvaluation) {
+      try {
+        parsedFraudEvaluation = {
+          ...refundRequest.fraudEvaluation,
+          detectedPatterns: JSON.parse(refundRequest.fraudEvaluation.detectedPatterns),
+          anomalyDetails: JSON.parse(refundRequest.fraudEvaluation.anomalyDetails),
+          contributingEvidence: refundRequest.fraudEvaluation.contributingEvidence
+            ? JSON.parse(refundRequest.fraudEvaluation.contributingEvidence)
+            : [],
+          missingInformation: refundRequest.fraudEvaluation.missingInformation
+            ? JSON.parse(refundRequest.fraudEvaluation.missingInformation)
+            : [],
+        };
+      } catch {
+        parsedFraudEvaluation = refundRequest.fraudEvaluation;
+      }
+    }
+
+    let parsedCustomerRiskProfile = null;
+    if (refundRequest.customer?.riskProfile) {
+      try {
+        parsedCustomerRiskProfile = {
+          ...refundRequest.customer.riskProfile,
+          compositeScore: refundRequest.customer.riskProfile.compositeRiskScore,
+          signals: refundRequest.customer.riskProfile.fraudSignals
+            ? JSON.parse(refundRequest.customer.riskProfile.fraudSignals)
+            : [],
+          scoreBreakdown: refundRequest.customer.riskProfile.scoreBreakdown
+            ? JSON.parse(refundRequest.customer.riskProfile.scoreBreakdown)
+            : null,
+        };
+      } catch {
+        parsedCustomerRiskProfile = refundRequest.customer.riskProfile;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -89,6 +128,8 @@ export async function GET(
               reasonCodes,
             }
           : null,
+        parsedFraudEvaluation,
+        parsedCustomerRiskProfile,
         auditEvents,
       },
     });

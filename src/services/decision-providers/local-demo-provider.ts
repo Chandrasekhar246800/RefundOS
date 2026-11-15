@@ -247,6 +247,15 @@ export class LocalDemoDecisionProvider implements RefundDecisionProvider {
 
     const confidence = decision === 'MANUAL_REVIEW' ? 0.72 : 0.94;
 
+    const usage = {
+      inputTokens: Math.floor(180 + Math.random() * 40),
+      stateTokens: Math.floor(120 + Math.random() * 30),
+      outputTokens: Math.floor(65 + Math.random() * 20),
+      totalTokens: 380,
+      latencyMs: Math.floor(8 + Math.random() * 8),
+      estimatedCostUsd: 0.00018,
+    };
+
     return {
       decision,
       riskScore,
@@ -258,6 +267,7 @@ export class LocalDemoDecisionProvider implements RefundDecisionProvider {
       missingInformation: missingInfo,
       policyChecks,
       recommendedNextAction,
+      usage,
     };
   }
 }

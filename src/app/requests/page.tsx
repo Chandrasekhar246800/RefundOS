@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { EvidenceIntelligenceViewer } from '@/components/evidence/EvidenceIntelligenceViewer';
+import { CustomerRiskCard } from '@/components/intelligence/CustomerRiskCard';
+import { FraudEvaluationCard } from '@/components/intelligence/FraudEvaluationCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -726,7 +728,7 @@ function RequestsContent() {
                 </div>
               )}
 
-              {/* Order & Request Summary */}
+              {/* Order Details & Customer Account */}
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
@@ -748,22 +750,42 @@ function RequestsContent() {
 
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                    Customer Risk Profile
+                    Customer Account
                   </span>
                   <p className="font-mono font-semibold text-slate-800">
                     {activeRequest.customer.syntheticCustomerRef}
                   </p>
                   <p className="text-slate-600 mt-1">
-                    Total Orders: {activeRequest.customer.totalOrders}
+                    Total Lifetime Orders: {activeRequest.customer.totalOrders}
                   </p>
                   <p className="text-slate-600">
                     Prior Refunds: {activeRequest.customer.priorRefundCount}
                   </p>
-                  <p className="text-slate-600">
-                    Prior Chargebacks: {activeRequest.customer.priorChargebackCount}
-                  </p>
+                  <Link
+                    href={`/customers?id=${activeRequest.customer.id}`}
+                    className="text-emerald-600 font-semibold hover:underline mt-1 inline-block text-[11px]"
+                  >
+                    View in Customer Intelligence →
+                  </Link>
                 </div>
               </div>
+
+              {/* Customer Risk Profile Card */}
+              <CustomerRiskCard
+                customerId={activeRequest.customer.id}
+                customerRef={activeRequest.customer.syntheticCustomerRef}
+                riskProfile={activeRequest.parsedCustomerRiskProfile || activeRequest.customer.riskProfile}
+                onRefresh={() => openDetailDrawer(activeRequest.id)}
+                addToast={addToast}
+              />
+
+              {/* Multi-Signal Fraud Evaluation Card */}
+              <FraudEvaluationCard
+                requestId={activeRequest.id}
+                fraudEvaluation={activeRequest.parsedFraudEvaluation || activeRequest.fraudEvaluation}
+                onRefresh={() => openDetailDrawer(activeRequest.id)}
+                addToast={addToast}
+              />
 
               {/* Customer Message & Claim Details */}
               <div className="space-y-2">

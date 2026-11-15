@@ -58,6 +58,26 @@ export interface RefundEvidencePacket {
     outcome: string;
     amount: number;
   }>;
+  customerRiskSummary?: {
+    compositeScore: number;
+    riskTier: string;
+    refundToSpendRatio: number;
+    frequency30d: number;
+    signals: string[];
+  };
+  fraudEvaluationSummary?: {
+    fraudScore: number;
+    riskTier: string;
+    detectedPatterns: string[];
+    anomalyCount: number;
+    recommendedAction: string;
+  };
+  evidenceIntelligenceSummary?: {
+    fileCount: number;
+    hasPerceptualDuplicates: boolean;
+    hasDocumentInconsistencies: boolean;
+    ocrMatchStatus?: string;
+  };
 }
 
 export interface RefundPolicySnapshot {
@@ -273,19 +293,58 @@ export interface IDeliveryIntelligenceService {
   inspectDelivery(input: DeliveryInspectionInput): Promise<DeliveryInspectionResult>;
 }
 
+export interface CustomerSignal {
+  rule: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  scoreContribution: number;
+  description: string;
+  evidenceReference?: string;
+}
+
 export interface CustomerRiskMetrics {
   compositeRiskScore: number; // 0 - 100
-  riskTier: 'LOW' | 'MEDIUM' | 'HIGH' | 'RESTRICTED';
+  riskTier: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
   claimsLast7Days: number;
   claimsLast30Days: number;
+  claimsLast90Days: number;
   refundToSpendRatio: number;
+  refundToOrderRatio: number;
   chargebackRate: number;
   anonymizedClusterHash?: string;
   fraudSignals: string[];
 }
 
+export interface DetailedCustomerRiskProfile {
+  customerId: string;
+  customerRef: string;
+  compositeRiskScore: number; // 0 - 100
+  riskTier: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  totalOrders: number;
+  totalRefundRequests: number;
+  approvedRefunds: number;
+  rejectedRefunds: number;
+  manualReviews: number;
+  totalRefundAmountCents: number;
+  totalPurchaseAmountCents: number;
+  refundToOrderRatio: number;
+  refundToSpendRatio: number;
+  claimsLast7Days: number;
+  claimsLast30Days: number;
+  claimsLast90Days: number;
+  repeatedRefundCount: number;
+  chargebackRate: number;
+  previousChargebacks: number;
+  avgDaysToRefund: number | null;
+  behaviourChangeTrend: 'STABLE' | 'ACCELERATING' | 'DECELERATING' | 'INSUFFICIENT_HISTORY';
+  dataCompleteness: number; // 0.0 - 1.0
+  contributingSignals: CustomerSignal[];
+  calculationExplanation: string;
+  lastEvaluatedAt: string;
+}
+
 export interface ICustomerRiskService {
-  evaluateCustomerRisk(customerId: string): Promise<CustomerRiskMetrics>;
+  evaluateCustomerRisk(customerId: string): Promise<DetailedCustomerRiskProfile>;
+  getCustomerRiskProfile(customerId: string): Promise<DetailedCustomerRiskProfile | null>;
 }
 
 export interface FraudEvaluationResult {
@@ -293,7 +352,11 @@ export interface FraudEvaluationResult {
   riskTier: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
   detectedPatterns: string[];
   anomalyDetails: Record<string, any>;
+  contributingEvidence: string[];
+  missingInformation: string[];
   dispositionProposal: 'PASS' | 'REVIEW' | 'REJECT';
+  recommendedAction: 'APPROVE' | 'MANUAL_REVIEW' | 'REJECT';
+  calculationSummary: string;
 }
 
 export interface IFraudDetectionEngine {

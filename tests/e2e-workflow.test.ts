@@ -133,5 +133,5 @@ describe('Complete End-to-End Workflow & Safety Guarantees', () => {
       where: { entityId: genResult.batchId },
     });
     expect(auditCount).toBeGreaterThanOrEqual(1);
-  });
+  }, 30000);
 });

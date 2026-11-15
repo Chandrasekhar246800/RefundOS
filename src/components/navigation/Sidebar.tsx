@@ -13,6 +13,7 @@ import {
   Settings,
   History,
   ShieldAlert,
+  Users,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -24,6 +25,7 @@ export function Sidebar() {
     { label: 'Products', href: '/products', icon: Package },
     { label: 'Synthetic Generator', href: '/generator', icon: Sparkles, highlight: true },
     { label: 'Refund Requests', href: '/requests', icon: Inbox },
+    { label: 'Customer Intelligence', href: '/customers', icon: Users },
     { label: 'Processing Batches', href: '/batches', icon: Layers },
     { label: 'Settings & Policy', href: '/settings', icon: Settings },
     { label: 'Audit Trail', href: '/audit', icon: History },

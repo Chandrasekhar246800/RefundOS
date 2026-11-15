@@ -6,6 +6,7 @@ import {
   RefundPolicySnapshot,
 } from '@/types';
 import { DecisionProviderFactory } from './decision-providers/factory';
+import { FraudDetectionEngine } from './intelligence/fraud-detection-engine';
 
 export class DecisionEngine {
   /**
@@ -17,7 +18,10 @@ export class DecisionEngine {
     order: any,
     customer: any,
     product: any,
-    previousRefunds: any[] = []
+    previousRefunds: any[] = [],
+    fraudEval?: any,
+    customerRisk?: any,
+    evidenceFiles: any[] = []
   ): RefundEvidencePacket {
     let daysSinceDelivery: number | null = null;
     if (order.deliveredAt) {
@@ -60,6 +64,46 @@ export class DecisionEngine {
       amount: pr.amount,
     }));
 
+    // Summaries for multi-signal risk correlation
+    const customerRiskSummary = customerRisk
+      ? {
+          compositeScore: customerRisk.compositeRiskScore,
+          riskTier: customerRisk.riskTier,
+          refundToSpendRatio: customerRisk.refundToSpendRatio,
+          frequency30d: customerRisk.claimsLast30Days,
+          signals: customerRisk.fraudSignals,
+        }
+      : undefined;
+
+    const fraudEvaluationSummary = fraudEval
+      ? {
+          fraudScore: fraudEval.fraudScore,
+          riskTier: fraudEval.riskTier,
+          detectedPatterns: fraudEval.detectedPatterns,
+          anomalyCount: Object.keys(fraudEval.anomalyDetails || {}).length,
+          recommendedAction: fraudEval.recommendedAction,
+        }
+      : undefined;
+
+    let hasPerceptualDuplicates = false;
+    let hasDocumentInconsistencies = false;
+    let ocrMatchStatus = 'N/A';
+
+    for (const f of evidenceFiles) {
+      if (f.imageAnalysis?.duplicateFound) hasPerceptualDuplicates = true;
+      if (f.documentAnalysis) {
+        ocrMatchStatus = f.documentAnalysis.orderMatchStatus;
+        if (ocrMatchStatus === 'CONTRADICTORY') hasDocumentInconsistencies = true;
+      }
+    }
+
+    const evidenceIntelligenceSummary = {
+      fileCount: evidenceFiles.length,
+      hasPerceptualDuplicates,
+      hasDocumentInconsistencies,
+      ocrMatchStatus,
+    };
+
     return {
       requestId: request.id,
       orderRef: order.orderRef,
@@ -85,6 +129,9 @@ export class DecisionEngine {
       evidence: parsedEvidence,
       trackingSignals: parsedTracking,
       previousRefundOutcomes: previousOutcomes,
+      customerRiskSummary,
+      fraudEvaluationSummary,
+      evidenceIntelligenceSummary,
     };
   }
 
@@ -151,6 +198,12 @@ export class DecisionEngine {
         product: true,
         decision: true,
         transaction: true,
+        evidenceFiles: {
+          include: {
+            imageAnalysis: true,
+            documentAnalysis: true,
+          },
+        },
       },
     });
 
@@ -191,7 +244,11 @@ export class DecisionEngine {
     });
 
     try {
-      // 2. Fetch previous refund history for this customer/order
+      // 2. Intelligence Layer: Multi-dimensional Fraud Detection Engine
+      const fraudEngine = new FraudDetectionEngine();
+      const fraudEval = await fraudEngine.evaluateFraudRisk(request.id);
+
+      // 3. Fetch previous refund history for this customer/order
       const previousRefunds = await prisma.refundTransaction.findMany({
         where: {
           refundRequest: {
@@ -201,19 +258,22 @@ export class DecisionEngine {
         },
       });
 
-      // 3. Build sanitized evidence packet (Strictly without groundTruthLabel)
+      // 4. Build sanitized evidence packet (Strictly without groundTruthLabel)
       const evidencePacket = this.buildEvidencePacket(
         request,
         request.order,
         request.customer,
         request.product,
-        previousRefunds
+        previousRefunds,
+        fraudEval,
+        null,
+        request.evidenceFiles || []
       );
 
-      // 4. Get active policy
+      // 5. Get active policy
       const policy = await this.getActivePolicy();
 
-      // 5. Select provider
+      // 6. Select provider
       const { provider, providerName } = await DecisionProviderFactory.getProvider(forcedProvider);
 
       const decisionInput: DecisionInput = {
@@ -221,8 +281,48 @@ export class DecisionEngine {
         policy,
       };
 
-      // 6. Call provider
-      const decision = await provider.decide(decisionInput);
+      // 7. Call provider (Decision Layer) with graceful fallback on provider failure
+      let decision: NormalizedDecision;
+      let effectiveProviderName = providerName;
+      try {
+        decision = await provider.decide(decisionInput);
+      } catch (providerError: any) {
+        if (effectiveProviderName !== 'LOCAL_DEMO') {
+          const { LocalDemoDecisionProvider } = await import('./decision-providers/local-demo-provider');
+          const localDemo = new LocalDemoDecisionProvider();
+          decision = await localDemo.decide(decisionInput);
+          decision.rationale += ` [Fallback from ${effectiveProviderName}: ${providerError.message}]`;
+          effectiveProviderName = 'LOCAL_DEMO';
+        } else {
+          throw providerError;
+        }
+      }
+
+      // 8. Policy Guardrail Layer: Validate AI Recommendation Against Fraud Signals
+      // Rule: Risk score alone must not automatically reject a refund.
+      // Rule: High-risk cases are routed to MANUAL_REVIEW.
+      // Rule: Conclusive fraud patterns (e.g. duplicate evidence, contradictory documents) trigger REJECT or MANUAL_REVIEW.
+      if (fraudEval.recommendedAction === 'REJECT') {
+        if (decision.decision !== 'REJECT') {
+          decision.policyChecks.push({
+            rule: 'FRAUD_ENGINE_GUARDRAIL',
+            result: 'FAIL',
+            explanation: `Policy Guardrail: Overrode decision to REJECT due to high-risk fraud patterns (${fraudEval.detectedPatterns.join(', ')}).`,
+          });
+          decision.decision = 'REJECT';
+          decision.rationale += ` [Policy Guardrail: Overrode to REJECT due to detected fraud patterns: ${fraudEval.detectedPatterns.join(', ')}].`;
+        }
+      } else if (fraudEval.recommendedAction === 'MANUAL_REVIEW') {
+        if (decision.decision === 'APPROVE') {
+          decision.policyChecks.push({
+            rule: 'FRAUD_ENGINE_GUARDRAIL',
+            result: 'FAIL',
+            explanation: `Policy Guardrail: Overrode APPROVE to MANUAL_REVIEW due to elevated risk tier (${fraudEval.riskTier}) and detected anomalies (${fraudEval.detectedPatterns.join(', ')}).`,
+          });
+          decision.decision = 'MANUAL_REVIEW';
+          decision.rationale += ` [Policy Guardrail: Overrode to MANUAL_REVIEW due to elevated risk tier: ${fraudEval.riskTier}].`;
+        }
+      }
 
       // 7. Persist Decision, update request status, and execute state transition in transaction
       await prisma.$transaction(async (tx) => {
@@ -230,8 +330,8 @@ export class DecisionEngine {
         await tx.decision.upsert({
           where: { refundRequestId: request.id },
           update: {
-            provider: providerName,
-            modelOrDeployment: providerName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'deterministic-v2',
+            provider: effectiveProviderName,
+            modelOrDeployment: effectiveProviderName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'deterministic-v2',
             policyVersion: policy.version,
             decision: decision.decision,
             riskScore: decision.riskScore ?? null,
@@ -245,15 +345,15 @@ export class DecisionEngine {
             recommendedNextAction: decision.recommendedNextAction || null,
             inputSnapshot: JSON.stringify(evidencePacket),
             providerResponseSanitized: JSON.stringify({
-              provider: providerName,
+              provider: effectiveProviderName,
               decision: decision.decision,
               riskScore: decision.riskScore,
             }),
           },
           create: {
             refundRequestId: request.id,
-            provider: providerName,
-            modelOrDeployment: providerName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'deterministic-v2',
+            provider: effectiveProviderName,
+            modelOrDeployment: effectiveProviderName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'deterministic-v2',
             policyVersion: policy.version,
             decision: decision.decision,
             riskScore: decision.riskScore ?? null,
@@ -267,7 +367,7 @@ export class DecisionEngine {
             recommendedNextAction: decision.recommendedNextAction || null,
             inputSnapshot: JSON.stringify(evidencePacket),
             providerResponseSanitized: JSON.stringify({
-              provider: providerName,
+              provider: effectiveProviderName,
               decision: decision.decision,
               riskScore: decision.riskScore,
             }),
@@ -281,7 +381,7 @@ export class DecisionEngine {
               refundRequestId: request.id,
               batchId: request.batchId || null,
               endpoint: '/v1/systemone',
-              model: providerName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'local-deterministic',
+              model: effectiveProviderName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'local-deterministic',
               inputTokens: decision.usage.inputTokens,
               stateTokens: decision.usage.stateTokens,
               outputTokens: decision.usage.outputTokens,

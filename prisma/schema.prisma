@@ -300,26 +300,44 @@ model CustomerRiskProfile {
   customerId            String        @unique
   customer              Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   compositeRiskScore    Int           @default(15) // 0 - 100
-  riskTier              String        @default("LOW") // LOW, MEDIUM, HIGH, RESTRICTED
+  riskTier              String        @default("LOW") // LOW, MODERATE, HIGH, CRITICAL
+  totalOrders           Int           @default(0)
+  totalRefundRequests   Int           @default(0)
+  approvedRefunds       Int           @default(0)
+  rejectedRefunds       Int           @default(0)
+  manualReviews         Int           @default(0)
+  totalRefundAmount     Int           @default(0) // in cents
+  totalPurchaseAmount   Int           @default(0) // in cents
+  refundToOrderRatio    Float         @default(0.0)
+  refundToSpendRatio    Float         @default(0.0) // Refund amount / Lifetime spend
   claimsLast7Days       Int           @default(0)
   claimsLast30Days      Int           @default(0)
-  refundToSpendRatio    Float         @default(0.0) // Refund amount / Lifetime spend
+  claimsLast90Days      Int           @default(0)
+  repeatedRefundCount   Int           @default(0) // Repeated claims against same order/item
   chargebackRate        Float         @default(0.0)
+  previousChargebacks   Int           @default(0)
+  avgDaysToRefund       Float?        // Avg days between order purchase and refund request
+  behaviourChangeTrend  String?       // STABLE, ACCELERATING, DECELERATING, INSUFFICIENT_HISTORY
   anonymizedClusterHash String?       // Anonymized identifier for address/account link analysis
+  dataCompleteness      Float         @default(1.0) // 0.0 - 1.0
   fraudSignals          String        // JSON array of active risk flags
+  scoreBreakdown        String?       // JSON explanation of contributing signals
   lastEvaluatedAt       DateTime      @default(now())
 }
 
 model FraudEvaluation {
-  id                  String        @id @default(cuid())
-  refundRequestId     String        @unique
-  refundRequest       RefundRequest @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
-  fraudScore          Int           @default(0) // 0 - 100
-  riskTier            String        @default("LOW") // LOW, MODERATE, HIGH, CRITICAL
-  detectedPatterns    String        // JSON array of detected fraud patterns
-  anomalyDetails      String        // JSON details of signals triggering risk
-  dispositionProposal String        @default("PASS") // PASS, REVIEW, REJECT
-  createdAt           DateTime      @default(now())
+  id                   String        @id @default(cuid())
+  refundRequestId      String        @unique
+  refundRequest        RefundRequest @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
+  fraudScore           Int           @default(0) // 0 - 100
+  riskTier             String        @default("LOW") // LOW, MODERATE, HIGH, CRITICAL
+  detectedPatterns     String        // JSON array of detected fraud patterns
+  anomalyDetails       String        // JSON details of signals triggering risk
+  contributingEvidence String?       // JSON array of evidence file IDs / references
+  missingInformation  String?       // JSON array of missing signals
+  recommendedAction    String        @default("APPROVE") // APPROVE, MANUAL_REVIEW, REJECT
+  dispositionProposal  String        @default("PASS") // PASS, REVIEW, REJECT
+  createdAt            DateTime      @default(now())
 }
 
 model ProductRiskProfile {
