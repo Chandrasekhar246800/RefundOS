@@ -5,8 +5,8 @@ import { Sidebar } from '@/components/navigation/Sidebar';
 import { TopBar } from '@/components/navigation/TopBar';
 
 export const metadata: Metadata = {
-  title: 'FounderLabs - AI Refund Management Platform',
-  description: 'AI-assisted refund management platform with Jev System One integration and deterministic evaluation.',
+  title: 'REFUND OS — AI-Powered Intelligent Refund Management Platform',
+  description: 'Enterprise AI-assisted refund management and decision automation platform powered by Laya API System One.',
 };
 
 export default function RootLayout({

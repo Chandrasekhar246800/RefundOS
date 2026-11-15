@@ -16,6 +16,10 @@ import {
   DollarSign,
   PackageCheck,
   CheckCircle2,
+  Cpu,
+  Zap,
+  Activity,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -23,6 +27,7 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const fetchMetrics = async () => {
     try {
@@ -46,6 +51,36 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchMetrics();
   }, [activeBrandId]);
+
+  const handleQuickstartGenerate = async () => {
+    try {
+      setIsGenerating(true);
+      const res = await fetch('/api/demo/generate-refunds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          legitimateCount: 10,
+          nonLegitimateCount: 10,
+          seed: `refund-os-${Date.now()}`,
+          dryRun: false,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(
+          'Generated 20 synthetic refund requests (10 Legitimate + 10 Non-Legitimate).',
+          'success'
+        );
+        await fetchMetrics();
+      } else {
+        addToast(data.error || 'Failed to generate demo dataset', 'error');
+      }
+    } catch {
+      addToast('Network error generating demo dataset', 'error');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleProcessAllPending = async () => {
     try {
@@ -96,6 +131,7 @@ export default function DashboardPage() {
   const overview = metrics?.overview || {};
   const cm = metrics?.confusionMatrix || {};
   const batches = metrics?.recentBatches || [];
+  const layaUsage = metrics?.layaUsage || {};
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -109,13 +145,22 @@ export default function DashboardPage() {
             Real-time live telemetry of AI-evaluated refund requests, policy guardrails, and simulated transaction volume.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleQuickstartGenerate}
+            disabled={isGenerating}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors disabled:opacity-50"
+            title="Instantly generate 10 legitimate and 10 fraudulent claims for demonstration"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            <span>{isGenerating ? 'Generating 20 Claims...' : '1-Click Demo Setup (10+10)'}</span>
+          </button>
           <Link
             href="/generator"
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
           >
-            <Sparkles className="w-4 h-4 text-emerald-600" />
-            <span>Generate 10+10 Dataset</span>
+            <span>Custom Generator</span>
+            <ArrowUpRight className="w-3 h-3" />
           </Link>
           <button
             onClick={handleProcessAllPending}
@@ -127,6 +172,34 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Empty State Guidance Card if no requests yet */}
+      {overview.totalRequests === 0 && (
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-xl p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Quickstart Guide</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Welcome to REFUND OS — Intelligent Decision Automation
+              </h3>
+              <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
+                No refund requests exist in the database yet. Generate your initial synthetic dataset of 10 legitimate claims and 10 fraudulent claims (including order history, carrier GPS signals, and photo evidence) to evaluate Laya AI in real time.
+              </p>
+            </div>
+            <button
+              onClick={handleQuickstartGenerate}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow transition-colors whitespace-nowrap disabled:opacity-50"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isGenerating ? 'Generating...' : 'Generate 20 Claims Now'}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Primary KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -218,6 +291,67 @@ export default function DashboardPage() {
           <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between">
             <span>In Processing: {overview.processingCount || 0}</span>
             <span>Failed: {overview.failedCount || 0}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Laya API Usage Ledger & Inference Telemetry */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
+              <Cpu className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Laya AI Inference & Token Ledger
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Persistent audit ledger of live Laya API System One telemetry, token consumption, and cost estimates.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              /v1/systemone (typed-decisions)
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-[10px] font-semibold text-slate-500 uppercase">Total Invocations</p>
+            <p className="text-lg font-bold text-slate-800 font-mono mt-0.5">
+              {layaUsage.totalInvocations || 0}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Decision requests evaluated</p>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-[10px] font-semibold text-slate-500 uppercase">Tokens Consumed</p>
+            <p className="text-lg font-bold text-purple-700 font-mono mt-0.5">
+              {(layaUsage.totalTokens || 0).toLocaleString()}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {layaUsage.inputTokens || 0} in / {layaUsage.stateTokens || 0} state
+            </p>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-[10px] font-semibold text-slate-500 uppercase">Avg API Latency</p>
+            <p className="text-lg font-bold text-slate-800 font-mono mt-0.5">
+              {layaUsage.avgLatencyMs || 0} ms
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">System One response roundtrip</p>
+          </div>
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-[10px] font-semibold text-slate-500 uppercase">Estimated API Cost</p>
+            <p className="text-lg font-bold text-emerald-700 font-mono mt-0.5">
+              ${(layaUsage.estimatedCostUsd || 0).toFixed(5)}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">$0.042 / 1M tokens</p>
           </div>
         </div>
       </div>

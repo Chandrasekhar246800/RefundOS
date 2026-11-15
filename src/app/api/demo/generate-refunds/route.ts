@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { SyntheticDataService } from '@/services/synthetic-data-service';
+import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const GenerateSchema = z.object({
-  brandId: z.string().min(1, 'Brand ID is required'),
-  productId: z.string().min(1, 'Product ID is required'),
+  brandId: z.string().optional(),
+  productId: z.string().optional(),
   legitimateCount: z.number().int().min(1).max(50).default(10),
   nonLegitimateCount: z.number().int().min(1).max(50).default(10),
   seed: z.union([z.string(), z.number()]).default(42),
@@ -13,10 +14,32 @@ const GenerateSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const validated = GenerateSchema.parse(body);
 
-    const result: any = await SyntheticDataService.generateRequests(validated);
+    let brandId = validated.brandId;
+    let productId = validated.productId;
+
+    if (!productId || !brandId) {
+      const defaultProduct = await prisma.product.findFirst({
+        where: { status: 'ACTIVE' },
+        include: { brand: true },
+      });
+      if (!defaultProduct) {
+        throw new Error('No active products found in catalog. Create a brand and product first.');
+      }
+      productId = defaultProduct.id;
+      brandId = defaultProduct.brandId;
+    }
+
+    const result: any = await SyntheticDataService.generateRequests({
+      brandId,
+      productId,
+      legitimateCount: validated.legitimateCount,
+      nonLegitimateCount: validated.nonLegitimateCount,
+      seed: validated.seed,
+      dryRun: validated.dryRun,
+    });
 
     const totalCount = result.totalGenerated ?? result.totalCount;
 

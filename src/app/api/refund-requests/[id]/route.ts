@@ -23,6 +23,9 @@ export async function GET(
         decision: true,
         transaction: true,
         batch: true,
+        layaUsage: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 

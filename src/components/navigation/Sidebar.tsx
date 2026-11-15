@@ -37,11 +37,12 @@ export function Sidebar() {
           <ShieldAlert className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="font-semibold text-white text-sm tracking-tight leading-tight">
-            FounderLabs
+          <h1 className="font-bold text-white text-base tracking-tight leading-tight flex items-center gap-1.5">
+            <span>REFUND</span>
+            <span className="text-emerald-400 font-extrabold">OS</span>
           </h1>
-          <p className="text-[11px] text-slate-400 font-mono tracking-wide">
-            AI REFUND PLATFORM
+          <p className="text-[10px] text-slate-400 font-mono tracking-wider uppercase">
+            Decision Automation
           </p>
         </div>
       </div>

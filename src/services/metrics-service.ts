@@ -30,6 +30,7 @@ export class MetricsService {
       rejectedRequests,
       recentBatches,
       allDecidedRequests,
+      layaUsageAggregate,
     ] = await Promise.all([
       prisma.brand.count({ where: { status: 'ACTIVE' } }),
       prisma.product.count({ where: { status: 'ACTIVE' } }),
@@ -69,6 +70,20 @@ export class MetricsService {
         select: {
           status: true,
           groundTruthLabel: true,
+        },
+      }),
+      prisma.layaUsageLog.aggregate({
+        where: filters?.batchId ? { batchId: filters.batchId } : undefined,
+        _count: { id: true },
+        _sum: {
+          totalTokens: true,
+          inputTokens: true,
+          stateTokens: true,
+          outputTokens: true,
+          estimatedCostUsd: true,
+        },
+        _avg: {
+          latencyMs: true,
         },
       }),
     ]);
@@ -114,6 +129,15 @@ export class MetricsService {
         totalSimulatedApprovedAmount, // in minor units
         totalSimulatedRejectedAmount, // in minor units
       },
+      layaUsage: {
+        totalInvocations: layaUsageAggregate._count.id || 0,
+        totalTokens: layaUsageAggregate._sum.totalTokens || 0,
+        inputTokens: layaUsageAggregate._sum.inputTokens || 0,
+        stateTokens: layaUsageAggregate._sum.stateTokens || 0,
+        outputTokens: layaUsageAggregate._sum.outputTokens || 0,
+        avgLatencyMs: Math.round(layaUsageAggregate._avg.latencyMs || 0),
+        estimatedCostUsd: Number((layaUsageAggregate._sum.estimatedCostUsd || 0).toFixed(6)),
+      },
       confusionMatrix: confusion,
       recentBatches,
     };
@@ -123,23 +147,39 @@ export class MetricsService {
    * Generates a detailed batch report.
    */
   static async getBatchReport(batchId: string) {
-    const batch = await prisma.processingBatch.findUnique({
-      where: { id: batchId },
-      include: {
-        brand: true,
-        product: true,
-        requests: {
-          include: {
-            order: true,
-            customer: true,
-            product: true,
-            decision: true,
-            transaction: true,
+    const [batch, batchUsageAggregate] = await Promise.all([
+      prisma.processingBatch.findUnique({
+        where: { id: batchId },
+        include: {
+          brand: true,
+          product: true,
+          requests: {
+            include: {
+              order: true,
+              customer: true,
+              product: true,
+              decision: true,
+              transaction: true,
+            },
+            orderBy: { requestedAt: 'asc' },
           },
-          orderBy: { requestedAt: 'asc' },
         },
-      },
-    });
+      }),
+      prisma.layaUsageLog.aggregate({
+        where: { batchId },
+        _count: { id: true },
+        _sum: {
+          totalTokens: true,
+          inputTokens: true,
+          stateTokens: true,
+          outputTokens: true,
+          estimatedCostUsd: true,
+        },
+        _avg: {
+          latencyMs: true,
+        },
+      }),
+    ]);
 
     if (!batch) {
       throw new Error(`Batch ${batchId} not found.`);
@@ -212,6 +252,15 @@ export class MetricsService {
         createdAt: batch.createdAt,
       },
       confusionMatrix,
+      layaUsage: {
+        totalInvocations: batchUsageAggregate._count.id || 0,
+        totalTokens: batchUsageAggregate._sum.totalTokens || 0,
+        inputTokens: batchUsageAggregate._sum.inputTokens || 0,
+        stateTokens: batchUsageAggregate._sum.stateTokens || 0,
+        outputTokens: batchUsageAggregate._sum.outputTokens || 0,
+        avgLatencyMs: Math.round(batchUsageAggregate._avg.latencyMs || 0),
+        estimatedCostUsd: Number((batchUsageAggregate._sum.estimatedCostUsd || 0).toFixed(6)),
+      },
       requests: requestDetails,
     };
   }
@@ -250,11 +299,18 @@ export class MetricsService {
     }
 
     const evaluatedDefinitive = tp + tn + fp + fn;
+    const totalRequests = totalLegitimate + totalNonLegitimate;
     const accuracy = evaluatedDefinitive > 0 ? (tp + tn) / evaluatedDefinitive : 0;
     const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
     const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
     const f1Score =
       precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+
+    const totalMR = mrLegit + mrNonLegit;
+    const automationRate = totalRequests > 0 ? (evaluatedDefinitive / totalRequests) * 100 : 0;
+    const manualReviewRate = totalRequests > 0 ? (totalMR / totalRequests) * 100 : 0;
+    const strictLegitimateApprovalRate = totalLegitimate > 0 ? (tp / totalLegitimate) * 100 : 0;
+    const strictFraudBlockRate = totalNonLegitimate > 0 ? (tn / totalNonLegitimate) * 100 : 0;
 
     return {
       totalLegitimateGroundTruth: totalLegitimate,
@@ -265,11 +321,15 @@ export class MetricsService {
       falseNegatives: fn,
       manualReviewLegitimate: mrLegit,
       manualReviewNonLegitimate: mrNonLegit,
-      totalManualReviews: mrLegit + mrNonLegit,
+      totalManualReviews: totalMR,
       accuracy: Number((accuracy * 100).toFixed(1)),
       precision: Number((precision * 100).toFixed(1)),
       recall: Number((recall * 100).toFixed(1)),
       f1Score: Number((f1Score * 100).toFixed(1)),
+      automationRate: Number(automationRate.toFixed(1)),
+      manualReviewRate: Number(manualReviewRate.toFixed(1)),
+      strictLegitimateApprovalRate: Number(strictLegitimateApprovalRate.toFixed(1)),
+      strictFraudBlockRate: Number(strictFraudBlockRate.toFixed(1)),
     };
   }
 }

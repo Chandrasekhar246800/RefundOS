@@ -191,8 +191,10 @@ export class LayaDecisionProvider implements RefundDecisionProvider {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const startTime = Date.now();
 
     let rawData: any;
+    let latencyMs = 0;
     try {
       const response = await fetch(`${this.baseUrl}/v1/systemone`, {
         method: 'POST',
@@ -204,6 +206,7 @@ export class LayaDecisionProvider implements RefundDecisionProvider {
         signal: controller.signal,
       });
 
+      latencyMs = Date.now() - startTime;
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -217,16 +220,28 @@ export class LayaDecisionProvider implements RefundDecisionProvider {
       throw new Error(`Laya API communication failed: ${err.message || 'Network error'}`);
     }
 
-    return this.normalizeLayaResponse(rawData, input);
+    return this.normalizeLayaResponse(rawData, input, latencyMs);
   }
 
-  private normalizeLayaResponse(raw: any, input: DecisionInput): NormalizedDecision {
+  private normalizeLayaResponse(raw: any, input: DecisionInput, latencyMs: number = 0): NormalizedDecision {
     const answers = raw.answers || {};
     const decisionAnswer = answers.decision || {};
     const riskAnswer = answers.risk_score || {};
     const legitimacyAnswer = answers.legitimacy_probability || {};
     const policyAnswer = answers.policy_compliance || {};
     const evidenceAnswer = answers.evidence_integrity || {};
+
+    const inputTokens = raw.usage?.input_tokens ?? 0;
+    const stateTokens = raw.usage?.state_tokens ?? 0;
+    const outputTokens = raw.usage?.output_tokens ?? 0;
+    const totalTokens = inputTokens + stateTokens + outputTokens;
+    // Estimated cost based on standard published rate of $0.042 per 1,000,000 tokens
+    const estimatedCostUsd =
+      raw.usage?.cost != null
+        ? Number(raw.usage.cost)
+        : totalTokens > 0
+        ? Number((totalTokens * 0.000000042).toFixed(7))
+        : 0;
 
     let decision: 'APPROVE' | 'REJECT' | 'MANUAL_REVIEW' = 'MANUAL_REVIEW';
     if (
@@ -325,6 +340,14 @@ export class LayaDecisionProvider implements RefundDecisionProvider {
           : decision === 'REJECT'
           ? 'Issue policy rejection notification'
           : 'Route to human operations team for manual verification',
+      usage: {
+        inputTokens,
+        stateTokens,
+        outputTokens,
+        totalTokens,
+        latencyMs,
+        estimatedCostUsd,
+      },
     };
   }
 }

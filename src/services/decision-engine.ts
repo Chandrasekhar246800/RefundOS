@@ -274,6 +274,25 @@ export class DecisionEngine {
           },
         });
 
+        // Record Laya usage telemetry log
+        if (decision.usage) {
+          await tx.layaUsageLog.create({
+            data: {
+              refundRequestId: request.id,
+              batchId: request.batchId || null,
+              endpoint: '/v1/systemone',
+              model: providerName === 'LAYA' ? process.env.LAYA_MODEL || 'typed-decisions' : 'local-deterministic',
+              inputTokens: decision.usage.inputTokens,
+              stateTokens: decision.usage.stateTokens,
+              outputTokens: decision.usage.outputTokens,
+              totalTokens: decision.usage.totalTokens,
+              latencyMs: decision.usage.latencyMs,
+              estimatedCostUsd: decision.usage.estimatedCostUsd,
+              statusCode: 200,
+            },
+          });
+        }
+
         // State Transition Handling
         if (decision.decision === 'APPROVE') {
           // Rule 9: For APPROVE, create simulated refund transaction

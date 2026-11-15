@@ -83,6 +83,15 @@ export interface PolicyCheckResult {
   explanation: string;
 }
 
+export interface LayaUsageTelemetry {
+  inputTokens: number;
+  stateTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  latencyMs: number;
+  estimatedCostUsd: number | null;
+}
+
 export interface NormalizedDecision {
   decision: DecisionOutcome;
   riskScore?: number | null; // 0 - 100
@@ -94,6 +103,7 @@ export interface NormalizedDecision {
   missingInformation: string[];
   policyChecks: PolicyCheckResult[];
   recommendedNextAction?: string;
+  usage?: LayaUsageTelemetry;
 }
 
 export interface RefundDecisionProvider {
@@ -112,8 +122,12 @@ export interface ConfusionMatrixMetrics {
   manualReviewLegitimate: number;
   manualReviewNonLegitimate: number;
   totalManualReviews: number;
-  accuracy: number; // (TP + TN) / total evaluated
+  accuracy: number; // (TP + TN) / total evaluated definitive
   precision: number; // TP / (TP + FP)
   recall: number; // TP / (TP + FN)
   f1Score: number;
+  automationRate?: number; // (TP + TN + FP + FN) / total requests
+  manualReviewRate?: number; // totalManualReviews / total requests
+  strictLegitimateApprovalRate?: number; // TP / totalLegitimate
+  strictFraudBlockRate?: number; // TN / totalNonLegitimate
 }

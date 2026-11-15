@@ -11,9 +11,22 @@ export async function GET(request: Request) {
     const reason = searchParams.get('reason') || undefined;
     const groundTruthLabel = searchParams.get('groundTruthLabel') || undefined;
     const search = searchParams.get('search') || undefined;
+    const sortBy = searchParams.get('sortBy') || 'requestedAt';
+    const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25', 10)));
     const skip = (page - 1) * limit;
+
+    let orderBy: any = { requestedAt: 'desc' };
+    if (sortBy === 'requestedAmount') {
+      orderBy = { requestedAmount: sortOrder };
+    } else if (sortBy === 'status') {
+      orderBy = { status: sortOrder };
+    } else if (sortBy === 'reason') {
+      orderBy = { reason: sortOrder };
+    } else if (sortBy === 'requestedAt') {
+      orderBy = { requestedAt: sortOrder };
+    }
 
     const where: any = {};
     if (batchId) where.batchId = batchId;
@@ -41,7 +54,7 @@ export async function GET(request: Request) {
         where,
         skip,
         take: limit,
-        orderBy: { requestedAt: 'desc' },
+        orderBy,
         include: {
           product: { select: { id: true, name: true, sku: true, brand: { select: { id: true, name: true } } } },
           customer: { select: { id: true, syntheticCustomerRef: true, totalOrders: true, priorRefundCount: true } },
@@ -57,6 +70,18 @@ export async function GET(request: Request) {
             },
           },
           transaction: { select: { reference: true, status: true, amount: true } },
+          layaUsage: {
+            select: {
+              inputTokens: true,
+              stateTokens: true,
+              outputTokens: true,
+              totalTokens: true,
+              latencyMs: true,
+              estimatedCostUsd: true,
+            },
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          },
         },
       }),
     ]);
@@ -83,6 +108,7 @@ export async function GET(request: Request) {
       rationale: r.decision?.rationale || null,
       reasonCodes: r.decision ? JSON.parse(r.decision.reasonCodes) : [],
       transactionRef: r.transaction?.reference || null,
+      layaUsage: r.layaUsage && r.layaUsage.length > 0 ? r.layaUsage[0] : null,
     }));
 
     return NextResponse.json({

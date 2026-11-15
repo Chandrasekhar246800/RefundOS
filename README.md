@@ -1,4 +1,5 @@
-# AI-Powered Refund Management Platform (FounderLabs)
+# REFUND OS
+### AI-Powered Intelligent Refund Management & Decision Automation Platform
 
 An enterprise-grade, end-to-end AI-assisted refund management platform engineered for ecommerce merchants. Designed to evaluate refund claims against versioned policy guardrails, photo and fulfillment evidence, customer order history, and delivery telemetry using **Laya API (System One)** structured decisions, backed by a deterministic local demo decision engine.
 
@@ -155,7 +156,7 @@ Copy `.env.example` to `.env`:
 1. Navigate to **Synthetic Generator** (`/generator`) in the sidebar.
 2. Select a fictional brand (e.g., *Aura Apparel*) and product (e.g., *Merino Wool Crewneck*).
 3. Ensure **Split Mode** is set to **10+10 Balanced** (10 Legitimate + 10 Non-Legitimate).
-4. Specify an optional random seed for reproducibility (e.g. `founderlabs-laya-seed`).
+4. Specify an optional random seed for reproducibility (e.g. `refund-os-laya-seed`).
 5. Click **Preview Records** to review the 10 legitimate and 10 non-legitimate scenarios.
 6. Click **Generate & Persist Batch** to save the batch and automatically open the requests inbox.
 

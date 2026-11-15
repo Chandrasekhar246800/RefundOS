@@ -20,7 +20,7 @@ function GeneratorContent() {
   const [mode, setMode] = useState<'balanced' | 'custom'>('balanced');
   const [legitimateCount, setLegitimateCount] = useState<number>(10);
   const [nonLegitimateCount, setNonLegitimateCount] = useState<number>(10);
-  const [seed, setSeed] = useState<string>('founderlabs-42');
+  const [seed, setSeed] = useState<string>('refund-os-42');
 
   const [previewData, setPreviewData] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);

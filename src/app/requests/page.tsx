@@ -19,6 +19,8 @@ import {
   ChevronRight,
   Layers,
   Sparkles,
+  RotateCcw,
+  Cpu,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -41,6 +43,10 @@ function RequestsContent() {
   const [groundTruthFilter, setGroundTruthFilter] = useState<string>('');
   const [batchIdFilter, setBatchIdFilter] = useState<string>(searchParams.get('batchId') || '');
 
+  // Sorting
+  const [sortBy, setSortBy] = useState<'requestedAt' | 'requestedAmount' | 'status' | 'reason'>('requestedAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   // Selection
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -49,12 +55,45 @@ function RequestsContent() {
   const [activeRequest, setActiveRequest] = useState<any>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  const hasActiveFilters = Boolean(
+    searchTerm ||
+    statusFilter ||
+    reasonFilter ||
+    groundTruthFilter ||
+    batchIdFilter ||
+    sortBy !== 'requestedAt' ||
+    sortOrder !== 'desc'
+  );
+
+  const handleSort = (column: 'requestedAt' | 'requestedAmount' | 'status' | 'reason') => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('');
+    setReasonFilter('');
+    setGroundTruthFilter('');
+    setBatchIdFilter('');
+    setSortBy('requestedAt');
+    setSortOrder('desc');
+    setPage(1);
+  };
+
   const fetchRequests = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
         page: String(page),
         limit: '25',
+        sortBy,
+        sortOrder,
       });
 
       if (activeBrandId && activeBrandId !== 'all') params.set('brandId', activeBrandId);
@@ -80,7 +119,7 @@ function RequestsContent() {
 
   useEffect(() => {
     fetchRequests();
-  }, [page, activeBrandId, statusFilter, reasonFilter, groundTruthFilter, batchIdFilter]);
+  }, [page, activeBrandId, statusFilter, reasonFilter, groundTruthFilter, batchIdFilter, sortBy, sortOrder]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,6 +286,19 @@ function RequestsContent() {
             <option value="LEGITIMATE">Legitimate Only</option>
             <option value="NON_LEGITIMATE">Non-Legitimate Only</option>
           </select>
+
+          {/* Inline Reset Button */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors whitespace-nowrap"
+              title="Reset all search queries, status filters, and custom column sorting"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filters</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -257,24 +309,41 @@ function RequestsContent() {
             Loading refund requests...
           </div>
         ) : requests.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 space-y-3">
+          <div className="p-12 text-center text-slate-500 space-y-4">
             <Inbox className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-sm font-semibold text-slate-700">No refund requests match your filters</p>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Generate a new 10+10 dataset or adjust your filter parameters above.
-            </p>
-            <Link
-              href="/generator"
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Open Dataset Generator</span>
-            </Link>
+            <div>
+              <p className="text-sm font-semibold text-slate-700">
+                {hasActiveFilters ? 'No refund requests match your active filters' : 'Inbox is empty'}
+              </p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                {hasActiveFilters
+                  ? 'Try clearing search terms or status constraints to view all stored requests.'
+                  : 'Generate a 10+10 synthetic dataset to test AI decision evaluation.'}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetFilters}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Clear All Filters</span>
+                </button>
+              )}
+              <Link
+                href="/generator"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Open Dataset Generator</span>
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200 select-none">
                 <tr>
                   <th className="py-3 px-3 w-8">
                     <input
@@ -286,10 +355,54 @@ function RequestsContent() {
                   </th>
                   <th className="py-3 px-3">Request Ref</th>
                   <th className="py-3 px-3">Product / SKU</th>
-                  <th className="py-3 px-3">Amount</th>
-                  <th className="py-3 px-3">Reason</th>
-                  <th className="py-3 px-3">Request Date</th>
-                  <th className="py-3 px-3">Status</th>
+                  <th
+                    onClick={() => handleSort('requestedAmount')}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                    title="Click to sort by amount"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Amount</span>
+                      <span className="text-[10px] text-slate-400">
+                        {sortBy === 'requestedAmount' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('reason')}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                    title="Click to sort by reason"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Reason</span>
+                      <span className="text-[10px] text-slate-400">
+                        {sortBy === 'reason' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('requestedAt')}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                    title="Click to sort by request date"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Request Date</span>
+                      <span className="text-[10px] text-slate-400">
+                        {sortBy === 'requestedAt' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('status')}
+                    className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                    title="Click to sort by status"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Status</span>
+                      <span className="text-[10px] text-slate-400">
+                        {sortBy === 'status' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </div>
+                  </th>
                   <th className="py-3 px-3">AI Decision</th>
                   <th className="py-3 px-3">Risk</th>
                   <th className="py-3 px-3">Ground Truth</th>
@@ -349,17 +462,27 @@ function RequestsContent() {
                       </td>
                       <td className="py-2.5 px-3">
                         {r.decision ? (
-                          <span
-                            className={`font-semibold ${
-                              r.decision === 'APPROVE'
-                                ? 'text-emerald-700'
-                                : r.decision === 'REJECT'
-                                ? 'text-rose-700'
-                                : 'text-amber-700'
-                            }`}
-                          >
-                            {r.decision}
-                          </span>
+                          <div>
+                            <span
+                              className={`font-semibold ${
+                                r.decision === 'APPROVE'
+                                  ? 'text-emerald-700'
+                                  : r.decision === 'REJECT'
+                                  ? 'text-rose-700'
+                                  : 'text-amber-700'
+                              }`}
+                            >
+                              {r.decision}
+                            </span>
+                            {r.layaUsage && (
+                              <div
+                                className="text-[9px] text-slate-400 font-mono mt-0.5"
+                                title={`Tokens: ${r.layaUsage.totalTokens}, Latency: ${r.layaUsage.latencyMs}ms`}
+                              >
+                                {r.layaUsage.totalTokens} tok • {r.layaUsage.latencyMs}ms
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-slate-400 font-mono">—</span>
                         )}
@@ -561,6 +684,34 @@ function RequestsContent() {
                         Ref: {activeRequest.transaction.reference} • Amount: $
                         {(activeRequest.transaction.amount / 100).toFixed(2)}
                       </p>
+                    </div>
+                  )}
+
+                  {/* Laya API Telemetry Log */}
+                  {activeRequest.layaUsage && activeRequest.layaUsage.length > 0 && (
+                    <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-lg text-purple-950 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold flex items-center gap-1.5">
+                          <Cpu className="w-3.5 h-3.5 text-purple-700" />
+                          <span>Laya API System One Telemetry</span>
+                        </span>
+                        <span className="font-mono text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-bold">
+                          {activeRequest.layaUsage[0].latencyMs} ms
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-[10px] font-mono pt-1 text-purple-900">
+                        <div>Input: {activeRequest.layaUsage[0].inputTokens} tok</div>
+                        <div>State: {activeRequest.layaUsage[0].stateTokens} tok</div>
+                        <div>Total: {activeRequest.layaUsage[0].totalTokens} tok</div>
+                      </div>
+                      {activeRequest.layaUsage[0].estimatedCostUsd !== null && (
+                        <div className="text-[10px] text-purple-700 border-t border-purple-200/60 pt-1 flex justify-between">
+                          <span>Estimated Cost:</span>
+                          <span className="font-mono font-bold">
+                            ${Number(activeRequest.layaUsage[0].estimatedCostUsd).toFixed(6)} USD
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

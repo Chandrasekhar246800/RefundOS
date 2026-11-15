@@ -321,7 +321,7 @@ describe('AI Refund Management Platform - Laya & Safety Tests', () => {
       productId: product!.id,
       legitimateCount: 10,
       nonLegitimateCount: 10,
-      seed: 'founderlabs-laya-seed',
+      seed: 'refund-os-laya-seed',
       dryRun: true,
     });
 
@@ -361,5 +361,104 @@ describe('AI Refund Management Platform - Laya & Safety Tests', () => {
     expect(matrix.precision).toBe(75.0); // 3 / (3 + 1) = 75%
     expect(matrix.recall).toBe(75.0); // 3 / (3 + 1) = 75%
     expect(matrix.accuracy).toBe(75.0); // (3 + 3) / 8 = 75%
+  });
+
+  it('RULE: Laya Provider normalizer records tokens, latency and calculates cost', () => {
+    const laya = new LayaDecisionProvider({ apiKey: 'sk_test_key_mock' });
+    const mockInput = {
+      request: {
+        requestId: 'req_mock_tokens',
+        orderRef: 'ORD-1',
+        customerRef: 'CUST-1',
+        productName: 'Test Product',
+        productSku: 'SKU-1',
+        productCategory: 'Apparel',
+        orderAmount: 5000,
+        requestedAmount: 5000,
+        currency: 'USD',
+        quantity: 1,
+        purchasedAt: new Date().toISOString(),
+        deliveredAt: new Date().toISOString(),
+        daysSinceDelivery: 1,
+        fulfilmentStatus: 'DELIVERED',
+        reason: 'DAMAGED_ITEM',
+        customerMessage: 'Item broke',
+        customerAccountAgeDays: 50,
+        customerTotalOrders: 2,
+        customerPriorRefunds: 0,
+        customerPriorReturns: 0,
+        customerPriorChargebacks: 0,
+        evidence: [],
+        trackingSignals: {
+          carrier: 'USPS',
+          trackingNumber: '999',
+          status: 'DELIVERED',
+          deliveryGpsMatch: true,
+          signatureObtained: false,
+        },
+      },
+      policy: standardPolicy,
+    };
+
+    const mockLayaRawWithUsage = {
+      model: 'laya-rl-agent',
+      answers: {
+        decision: { choice: 'APPROVE', confidence: 0.95 },
+        risk_score: { score: 10 },
+        legitimacy_probability: { noul: 0.95 },
+      },
+      usage: {
+        input_tokens: 42,
+        state_tokens: 15,
+        output_tokens: 8,
+      },
+    };
+
+    const normalized = (laya as any).normalizeLayaResponse(mockLayaRawWithUsage, mockInput, 320);
+
+    expect(normalized.usage).toBeDefined();
+    expect(normalized.usage.inputTokens).toBe(42);
+    expect(normalized.usage.stateTokens).toBe(15);
+    expect(normalized.usage.outputTokens).toBe(8);
+    expect(normalized.usage.totalTokens).toBe(65);
+    expect(normalized.usage.latencyMs).toBe(320);
+    expect(normalized.usage.estimatedCostUsd).toBeCloseTo(65 * 0.000000042, 6);
+  });
+
+  it('RULE: Metrics service mathematically computes strict rates and distinguishes manual reviews', () => {
+    const testCases = [
+      { status: 'APPROVED', groundTruthLabel: 'LEGITIMATE' }, // TP
+      { status: 'APPROVED', groundTruthLabel: 'LEGITIMATE' }, // TP
+      { status: 'REJECTED', groundTruthLabel: 'LEGITIMATE' }, // FN
+      { status: 'MANUAL_REVIEW', groundTruthLabel: 'LEGITIMATE' }, // MR Legit
+      { status: 'REJECTED', groundTruthLabel: 'NON_LEGITIMATE' }, // TN
+      { status: 'REJECTED', groundTruthLabel: 'NON_LEGITIMATE' }, // TN
+      { status: 'APPROVED', groundTruthLabel: 'NON_LEGITIMATE' }, // FP
+      { status: 'MANUAL_REVIEW', groundTruthLabel: 'NON_LEGITIMATE' }, // MR Non-Legit
+    ];
+
+    const metrics = MetricsService.calculateConfusionMatrix(testCases);
+
+    expect(metrics.totalLegitimateGroundTruth).toBe(4);
+    expect(metrics.totalNonLegitimateGroundTruth).toBe(4);
+    expect(metrics.truePositives).toBe(2);
+    expect(metrics.falseNegatives).toBe(1);
+    expect(metrics.trueNegatives).toBe(2);
+    expect(metrics.falsePositives).toBe(1);
+    expect(metrics.manualReviewLegitimate).toBe(1);
+    expect(metrics.manualReviewNonLegitimate).toBe(1);
+    expect(metrics.totalManualReviews).toBe(2);
+
+    // Definitive evaluations = 2 TP + 2 TN + 1 FP + 1 FN = 6
+    // Accuracy = (2 + 2) / 6 = 66.7%
+    expect(metrics.accuracy).toBe(66.7);
+    // Precision = 2 / (2 + 1) = 66.7%
+    expect(metrics.precision).toBe(66.7);
+    // Recall = 2 / (2 + 1) = 66.7%
+    expect(metrics.recall).toBe(66.7);
+    // Automation rate = 6 / 8 = 75.0%
+    expect(metrics.automationRate).toBe(75.0);
+    // Manual review rate = 2 / 8 = 25.0%
+    expect(metrics.manualReviewRate).toBe(25.0);
   });
 });

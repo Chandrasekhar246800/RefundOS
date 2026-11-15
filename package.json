@@ -1,6 +1,7 @@
 {
-  "name": "ai-refund-management-platform",
+  "name": "refund-os",
   "version": "1.0.0",
+  "description": "REFUND OS — AI-Powered Intelligent Refund Management & Decision Automation Platform",
   "private": true,
   "scripts": {
     "dev": "next dev",
