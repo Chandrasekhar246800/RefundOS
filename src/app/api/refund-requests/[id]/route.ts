@@ -26,6 +26,9 @@ export async function GET(
         layaUsage: {
           orderBy: { createdAt: 'desc' },
         },
+        evidenceFiles: {
+          orderBy: { uploadedAt: 'desc' },
+        },
       },
     });
 

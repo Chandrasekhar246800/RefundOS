@@ -40,6 +40,7 @@ model Product {
   orders         Order[]
   refundRequests RefundRequest[]
   batches        ProcessingBatch[]
+  riskProfile    ProductRiskProfile?
 }
 
 model Customer {
@@ -54,6 +55,7 @@ model Customer {
 
   orders                Order[]
   refundRequests        RefundRequest[]
+  riskProfile           CustomerRiskProfile?
 }
 
 model Order {
@@ -74,7 +76,8 @@ model Order {
   deliveryEvidence String?         // JSON string with carrier, tracking, delivery confirmation details
   createdAt        DateTime        @default(now())
 
-  refundRequests   RefundRequest[]
+  refundRequests       RefundRequest[]
+  deliveryIntelligence DeliveryIntelligence?
 }
 
 model RefundRequest {
@@ -102,6 +105,9 @@ model RefundRequest {
   decision         Decision?
   transaction      RefundTransaction?
   layaUsage        LayaUsageLog[]
+  evidenceFiles    EvidenceFile[]
+  fraudEvaluation  FraudEvaluation?
+  investigationCase InvestigationCase?
 }
 
 model Decision {
@@ -200,4 +206,149 @@ model SystemSetting {
   key       String   @id
   value     String   // JSON string or string
   updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// REFUND OS 2.0 EXTENSIONS
+// ==========================================
+
+model EvidenceFile {
+  id              String             @id @default(cuid())
+  refundRequestId String
+  refundRequest   RefundRequest      @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
+  fileType        String             // IMAGE, DOCUMENT
+  fileName        String
+  filePath        String             // Relative path in storage
+  fileSize        Int                // in bytes
+  mimeType        String
+  fileHash        String             // SHA-256 for duplicate and tamper detection
+  uploadedAt      DateTime           @default(now())
+
+  imageAnalysis    ImageAnalysis?
+  documentAnalysis DocumentAnalysis?
+}
+
+model ImageAnalysis {
+  id                 String       @id @default(cuid())
+  evidenceFileId     String       @unique
+  evidenceFile       EvidenceFile @relation(fields: [evidenceFileId], references: [id], onDelete: Cascade)
+  damageDetected     Boolean      @default(false)
+  damageType         String?      // CRACKED, WATER_DAMAGE, TORN, DEFECTIVE, WRONG_ITEM
+  damageSeverity     String       @default("NONE") // NONE, LOW, MEDIUM, HIGH, SEVERE
+  packagingCondition String       @default("UNOPENED") // UNOPENED, OPENED_INTACT, DAMAGED_TAMPERED
+  tamperScore        Int          @default(0) // 0 - 100
+  exifTimestamp      DateTime?
+  exifDeviceModel    String?
+  authenticityScore  Int          @default(100) // 0 - 100
+  analysisSummary    String
+  createdAt          DateTime     @default(now())
+}
+
+model DocumentAnalysis {
+  id                 String       @id @default(cuid())
+  evidenceFileId     String       @unique
+  evidenceFile       EvidenceFile @relation(fields: [evidenceFileId], references: [id], onDelete: Cascade)
+  documentType       String       // INVOICE, PACKING_SLIP, RETURN_LABEL, CARRIER_LOG, POLICE_REPORT, AFFIDAVIT
+  ocrText            String       // Full extracted text
+  extractedOrderId   String?
+  extractedTracking  String?
+  extractedAmount    Int?         // in minor units
+  extractedDate      DateTime?
+  orderMatchStatus   String       @default("MATCHED") // MATCHED, PARTIAL_MISMATCH, CONTRADICTORY
+  confidenceScore    Float        @default(1.0)
+  inconsistencies    String?      // JSON array of detected discrepancies
+  createdAt          DateTime     @default(now())
+}
+
+model DeliveryIntelligence {
+  id                     String        @id @default(cuid())
+  orderId                String        @unique
+  order                  Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier                String
+  trackingNumber         String
+  carrierStatus          String
+  geofenceMatch          Boolean       @default(true) // GPS scan within 50m of delivery address
+  geofenceDistanceMeters Float?
+  transitVelocityValid   Boolean       @default(true) // Detects physically impossible delivery hops
+  signatureVerified      Boolean       @default(false)
+  deliveryPhotoVerified  Boolean       @default(false)
+  carrierDisputeFlag     Boolean       @default(false)
+  riskScore              Int           @default(0) // 0 - 100
+  signalsJson            String        // Serialized carrier event timeline
+  updatedAt              DateTime      @updatedAt
+}
+
+model CustomerRiskProfile {
+  id                    String        @id @default(cuid())
+  customerId            String        @unique
+  customer              Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  compositeRiskScore    Int           @default(15) // 0 - 100
+  riskTier              String        @default("LOW") // LOW, MEDIUM, HIGH, RESTRICTED
+  claimsLast7Days       Int           @default(0)
+  claimsLast30Days      Int           @default(0)
+  refundToSpendRatio    Float         @default(0.0) // Refund amount / Lifetime spend
+  chargebackRate        Float         @default(0.0)
+  anonymizedClusterHash String?       // Anonymized identifier for address/account link analysis
+  fraudSignals          String        // JSON array of active risk flags
+  lastEvaluatedAt       DateTime      @default(now())
+}
+
+model FraudEvaluation {
+  id                  String        @id @default(cuid())
+  refundRequestId     String        @unique
+  refundRequest       RefundRequest @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
+  fraudScore          Int           @default(0) // 0 - 100
+  riskTier            String        @default("LOW") // LOW, MODERATE, HIGH, CRITICAL
+  detectedPatterns    String        // JSON array of detected fraud patterns
+  anomalyDetails      String        // JSON details of signals triggering risk
+  dispositionProposal String        @default("PASS") // PASS, REVIEW, REJECT
+  createdAt           DateTime      @default(now())
+}
+
+model ProductRiskProfile {
+  id                  String        @id @default(cuid())
+  productId           String        @unique
+  product             Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  claimRate           Float         @default(0.0) // Claims / Total sales
+  defectClaimRate     Float         @default(0.0)
+  fraudIncidenceRate  Float         @default(0.0)
+  highShrinkCategory  Boolean       @default(false)
+  riskTier            String        @default("STANDARD") // STANDARD, WATCHLIST, HIGH_RISK
+  clusterAnalysisJson String?       // JSON: Top reported defects & component failure patterns
+  updatedAt           DateTime      @updatedAt
+}
+
+model InvestigationCase {
+  id                 String             @id @default(cuid())
+  refundRequestId    String             @unique
+  refundRequest      RefundRequest      @relation(fields: [refundRequestId], references: [id], onDelete: Cascade)
+  assignedTo         String?            // Analyst username/ID
+  priority           String             @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status             String             @default("OPEN") // OPEN, IN_REVIEW, RESOLVED, ESCALATED
+  investigationNotes InvestigationNote[]
+  resolutionAudit    ManualOverrideAudit?
+  openedAt           DateTime           @default(now())
+  resolvedAt         DateTime?
+}
+
+model InvestigationNote {
+  id        String            @id @default(cuid())
+  caseId    String
+  case      InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author    String            @default("analyst")
+  noteText  String
+  tag       String?           // EVIDENCE_CHECK, CUSTOMER_CALL, CARRIER_DISPUTE, SUPERVISOR_NOTE
+  createdAt DateTime          @default(now())
+}
+
+model ManualOverrideAudit {
+  id                 String            @id @default(cuid())
+  caseId             String            @unique
+  case               InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  originalAiDecision String            // APPROVE | REJECT | MANUAL_REVIEW
+  overrideDecision   String            // APPROVE | REJECT
+  operatorName       String
+  justification      String            // Mandatory business reason
+  policyException    Boolean           @default(false)
+  timestamp          DateTime          @default(now())
 }

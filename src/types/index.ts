@@ -131,3 +131,143 @@ export interface ConfusionMatrixMetrics {
   strictLegitimateApprovalRate?: number; // TP / totalLegitimate
   strictFraudBlockRate?: number; // TN / totalNonLegitimate
 }
+
+// ==========================================
+// REFUND OS 2.0 STORAGE & INTELLIGENCE TYPES
+// ==========================================
+
+export type StoredFileType = 'IMAGE' | 'DOCUMENT';
+
+export interface StorageFileMetadata {
+  id: string;
+  refundRequestId: string;
+  fileType: StoredFileType;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
+  fileHash: string;
+  uploadedAt: string;
+}
+
+export interface FileValidationResult {
+  valid: boolean;
+  error?: string;
+  mimeType?: string;
+  fileType?: StoredFileType;
+  sanitizedFileName?: string;
+  fileHash?: string;
+}
+
+export interface StorageUploadResult {
+  success: boolean;
+  file?: StorageFileMetadata;
+  isDuplicate?: boolean;
+  duplicateOfId?: string;
+  error?: string;
+}
+
+// ------------------------------------------
+// Intelligence Domain Interfaces
+// ------------------------------------------
+
+export interface ImageInspectionInput {
+  evidenceFileId: string;
+  filePath: string;
+  claimedReason: string;
+  orderDeliveredAt?: string | null;
+}
+
+export interface ImageInspectionResult {
+  damageDetected: boolean;
+  damageType?: string;
+  damageSeverity: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'SEVERE';
+  packagingCondition: 'UNOPENED' | 'OPENED_INTACT' | 'DAMAGED_TAMPERED';
+  tamperScore: number; // 0 - 100
+  exifTimestamp?: string;
+  exifDeviceModel?: string;
+  authenticityScore: number; // 0 - 100
+  analysisSummary: string;
+}
+
+export interface IImageIntelligenceService {
+  inspectImage(input: ImageInspectionInput): Promise<ImageInspectionResult>;
+}
+
+export interface DocumentInspectionInput {
+  evidenceFileId: string;
+  filePath: string;
+  expectedOrderId: string;
+  expectedOrderAmount: number;
+  expectedTrackingNumber?: string;
+}
+
+export interface DocumentInspectionResult {
+  documentType: 'INVOICE' | 'PACKING_SLIP' | 'RETURN_LABEL' | 'CARRIER_LOG' | 'POLICE_REPORT' | 'AFFIDAVIT';
+  ocrText: string;
+  extractedOrderId?: string;
+  extractedTracking?: string;
+  extractedAmount?: number;
+  extractedDate?: string;
+  orderMatchStatus: 'MATCHED' | 'PARTIAL_MISMATCH' | 'CONTRADICTORY';
+  confidenceScore: number;
+  inconsistencies: string[];
+}
+
+export interface IDocumentIntelligenceService {
+  inspectDocument(input: DocumentInspectionInput): Promise<DocumentInspectionResult>;
+}
+
+export interface DeliveryInspectionInput {
+  orderId: string;
+  carrier: string;
+  trackingNumber: string;
+  shippingAddressCoordinates?: { lat: number; lng: number };
+  carrierDeliveryGps?: { lat: number; lng: number };
+  carrierTimelineJson?: string;
+}
+
+export interface DeliveryInspectionResult {
+  carrier: string;
+  trackingNumber: string;
+  carrierStatus: string;
+  geofenceMatch: boolean;
+  geofenceDistanceMeters?: number;
+  transitVelocityValid: boolean;
+  signatureVerified: boolean;
+  deliveryPhotoVerified: boolean;
+  carrierDisputeFlag: boolean;
+  riskScore: number; // 0 - 100
+  signals: Record<string, any>;
+}
+
+export interface IDeliveryIntelligenceService {
+  inspectDelivery(input: DeliveryInspectionInput): Promise<DeliveryInspectionResult>;
+}
+
+export interface CustomerRiskMetrics {
+  compositeRiskScore: number; // 0 - 100
+  riskTier: 'LOW' | 'MEDIUM' | 'HIGH' | 'RESTRICTED';
+  claimsLast7Days: number;
+  claimsLast30Days: number;
+  refundToSpendRatio: number;
+  chargebackRate: number;
+  anonymizedClusterHash?: string;
+  fraudSignals: string[];
+}
+
+export interface ICustomerRiskService {
+  evaluateCustomerRisk(customerId: string): Promise<CustomerRiskMetrics>;
+}
+
+export interface FraudEvaluationResult {
+  fraudScore: number; // 0 - 100
+  riskTier: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  detectedPatterns: string[];
+  anomalyDetails: Record<string, any>;
+  dispositionProposal: 'PASS' | 'REVIEW' | 'REJECT';
+}
+
+export interface IFraudDetectionEngine {
+  evaluateFraudRisk(refundRequestId: string): Promise<FraudEvaluationResult>;
+}
